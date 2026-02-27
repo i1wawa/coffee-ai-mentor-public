@@ -1,0 +1,234 @@
+# .github/workflows/terraform-bootstrap.yml
+# ======================================================================
+# 概要:
+# - Terraform bootstrap を plan/apply する手動ワークフロー
+#
+# 契約:
+# - tfplan は両ジョブで必ず削除する（失敗時も削除）
+# - artifact は短期保持（1日）し、apply 後に削除する
+#
+# 前提:
+# - GitHub Environments の prod を使用する
+# - Google Cloud は WIF（Workload Identity Federation）で runner を認証する
+# ======================================================================
+
+name: "Terraform: Plan or Apply (prod/bootstrap)"
+
+on:
+  # 手動トリガーのみ可能にする
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        # terraform planだけか、applyまでするかを選択可能に
+        description: "Run plan only, or plan + apply"
+        options:
+          - plan
+          - apply
+        default: plan
+
+permissions:
+  # リポジトリのコードの読み取りに必要
+  contents: read
+  # Google CloudのWIF（Workload Identity Federation）でOIDCトークンを発行するために必要
+  id-token: write
+  # アーティファクトの削除に必要
+  actions: write
+
+env:
+  # --- Terraform CLI環境に必要な環境変数（環境変数名はTerraformの仕様に準拠が必須） ---
+  # TerraformがCI環境で動いていることを示す（ログ整形や挙動の一部に影響）
+  TF_IN_AUTOMATION: "true"
+  # 対話入力を禁止（applyで止まらないように）
+  TF_INPUT: "false"
+  # Providerプラグインのキャッシュディレクトリ（actions/cacheでキャッシュする先）
+  TF_PLUGIN_CACHE_DIR: "${{ github.workspace }}/.terraform.d/plugin-cache"
+
+  # --- GitHub Environment variablesから取得する値群 ---
+  # Google Cloud：OIDC（Workload Identity Provider）用のプロバイダリソース名
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  # Google Cloud：Terraform実行権限を持つサービスアカウントのメールアドレス
+  GCP_WEB_GHA_RUNNER_SERVICE_ACCOUNT_EMAIL: ${{ vars.GCP_WEB_GHA_RUNNER_SERVICE_ACCOUNT_EMAIL }}
+  # Terraform：bootstrap：GCSステートバケットの管理者メンバー
+  TF_VAR_bucket_admin_members: ${{ vars.TF_VAR_BOOTSTRAP_BUCKET_ADMIN_MEMBERS_JSON }}
+
+concurrency:
+  # 短期間に複数回実行された場合も、すべての処理を継続
+  group: terraform-bootstrap
+  # 途中キャンセルしない（中途半端な適用を避ける）
+  cancel-in-progress: false
+
+jobs:
+  plan_bootstrap:
+    name: Plan bootstrap
+    runs-on: ubuntu-24.04
+    # GitHub Environmentsのprodを使用（保護ルール/承認/secret制御などに使える）
+    environment: prod
+
+    outputs:
+      # ジョブ間でplan成果物のアーティファクトIDを受け渡し（needs.plan_bootstrap.outputs.* で受け取れる）
+      bootstrap_tfplan_artifact_id: ${{ steps.upload_tfplan.outputs.artifact-id }}
+
+    steps:
+      # 作業ランナー（仮想マシン）にリポジトリをクローン
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Authenticate to Google Cloud (WIF) - runner only
+        # GitHub OIDC -> Google WIFで短命クレデンシャルを取得
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_WEB_GHA_RUNNER_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          # Terraformコード側で使っているバージョンに合わせる
+          terraform_version: "~1.14.0"
+          # wrapperを無効化（ログ出力が素直になり、plan/apply の挙動差を減らす）
+          terraform_wrapper: false
+
+      - name: Prepare plugin cache dir
+        # Providerプラグインのキャッシュ先を作成
+        run: mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+
+      - name: Cache Terraform plugins
+        # Providerのダウンロードを高速化（.terraform.lock.hclが変わったらキャッシュ更新）
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          # bootstrapのlockfileをキーにする
+          key: ${{ runner.os }}-tf-plugins-bootstrap-${{ hashFiles('infra/bootstrap/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-tf-plugins-bootstrap-
+
+      - name: Terraform init
+        run: | # shell
+          terraform -chdir=infra/bootstrap init -no-color -lock-timeout=5m
+
+      - name: Terraform validate
+        run: | # shell
+          terraform -chdir=infra/bootstrap validate -no-color
+
+      - name: Terraform plan (saved)
+        run: | # shell
+          terraform -chdir=infra/bootstrap plan -no-color -lock-timeout=5m -out=tfplan
+
+      # ジョブ間で受け渡せるようplanファイルを保存
+      - name: Upload plan artifact
+        # 手動実行時にapplyが選択された場合のみ実行
+        if: inputs.action == 'apply'
+        id: upload_tfplan
+        uses: actions/upload-artifact@v6
+        with:
+          name: bootstrap-tfplan
+          path: infra/bootstrap/tfplan
+          retention-days: 1
+          # planファイルがない場合はエラーにして終了
+          if-no-files-found: error
+
+      - name: Cleanup tfplan
+        # ここまでに失敗しても必ず実行
+        if: always()
+        # plan 出力に secrets などの sensitive が載るのを防ぐため、plan / apply 後に削除
+        run: | # shell
+          rm -f infra/bootstrap/tfplan
+
+  apply_bootstrap:
+    name: Apply bootstrap
+    needs: [plan_bootstrap]
+    # 手動実行時にapplyが選択された場合のみ実行
+    if: inputs.action == 'apply'
+    runs-on: ubuntu-24.04
+    # GitHub Environmentsのprodを使用（保護ルール/承認/secret制御などに使える）
+    # - パブリックリポジトリや有料プランなら、ここに承認ゲートを設けても良い（GitHub EnvironmentsでRequired reviewersを設定）
+    environment: prod
+
+    steps:
+      # 作業ランナー（仮想マシン）にリポジトリをクローン
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # ジョブ間で受け渡せるよう保存しておいたplanファイルを取得
+      - name: Download plan artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: bootstrap-tfplan
+          path: infra/bootstrap
+
+      - name: Authenticate to Google Cloud (WIF) - runner only
+        # GitHub OIDC -> Google WIFで短命クレデンシャルを取得
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_WEB_GHA_RUNNER_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          # Terraformコード側で使っているバージョンに合わせる
+          terraform_version: "~1.14.0"
+          # wrapperを無効化（ログ出力が素直になり、plan/apply の挙動差を減らす）
+          terraform_wrapper: false
+
+      - name: Prepare plugin cache dir
+        # Providerプラグインのキャッシュ先を作成
+        run: mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+
+      - name: Cache Terraform plugins
+        # Providerのダウンロードを高速化（.terraform.lock.hclが変わったらキャッシュ更新）
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          # bootstrapのlockfileをキーにする
+          key: ${{ runner.os }}-tf-plugins-bootstrap-${{ hashFiles('infra/bootstrap/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-tf-plugins-bootstrap-
+
+      - name: Terraform init
+        run: | # shell
+          terraform -chdir=infra/bootstrap init -no-color -lock-timeout=5m
+
+      - name: Terraform apply (from saved plan)
+        # -auto-approveで自動適用（CI向け）
+        run: | # shell
+          terraform -chdir=infra/bootstrap apply -no-color -lock-timeout=5m -auto-approve tfplan
+
+      - name: Cleanup tfplan
+        # ここまでに失敗しても必ず実行
+        if: always()
+        # plan 出力に secrets などの sensitive が載るのを防ぐため、plan / apply 後に削除
+        run: | # shell
+          rm -f infra/bootstrap/tfplan
+
+      # plan 成果物に secrets などが載り得るため、apply後に削除
+      - name: Delete plan artifact (GitHub)
+        # ここまでに失敗しても必ず実行
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: | # javascript
+            const raw = "${{ needs.plan_bootstrap.outputs.bootstrap_tfplan_artifact_id }}";
+            const artifactId = Number(raw);
+
+            // artifactId が不正な場合は警告を出して終了
+            if (!Number.isFinite(artifactId) || artifactId <= 0) {
+              core.warning(`invalid artifact id: ${raw}`);
+              return;
+            }
+
+            try {
+              // アーティファクトを削除するAPIを呼び出す
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifactId,
+              });
+            } catch (e) {
+              core.warning(`deleteArtifact failed: ${e.message}`);
+            }

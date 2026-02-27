@@ -1,0 +1,84 @@
+# .github/workflows/apps-web-main-ci.yml
+# ======================================================================
+# 概要:
+# - main への push で apps/web に影響する変更がある場合に実行する
+# - reusable workflow で lint/test を実行し、成功後に Cloud Run へデプロイする
+#
+# 契約:
+# - トリガー: main push + workflow_dispatch
+# - 実行順: test → deploy（deploy は test 成功時のみ）
+# ======================================================================
+
+name: "Web: Main CI + Deploy (apps/web)"
+
+on:
+  # apps/webアプリに影響するmainブランチへのpush時に実行
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/web/**'
+      # ドキュメントは除外
+      - '!apps/web/**/*.md'
+      - '!apps/web/**/*.mdx'
+      # CI設定や依存関係に変更があった場合も実行
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+
+  # マージ前テストのため、一時的にPR時にも実行するときはコメント解除
+  # pull_request:
+  #   branches:
+  #     - main
+
+  # 手動実行も可能にする
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: apps/web lint and tests
+    uses: ./.github/workflows/lint-and-test.yml
+    with:
+      # アプリの場所
+      app_path: apps/web
+
+    concurrency:
+      # 短期間に複数回実行された場合、最新の処理のみを継続
+      group: ${{ github.workflow }}-${{ github.ref }}-apps-web-test
+      # 途中キャンセルを許可
+      cancel-in-progress: true
+
+    # テストだけなのでread権限で十分
+    permissions:
+      # リポジトリのコードの読み取りに必要
+      contents: read
+
+  deploy:
+    name: Deploy apps/web to Cloud Run
+    # mainブランチでのみ実行可能に制限
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/nextjs-to-cloudrun-deploy.yml
+    # テストが全部通って、変更のあったパスの検出を判定してから実行
+    needs: [test]
+
+    with:
+      # Next.jsアプリのパス
+      app_path: apps/web
+      # アプリパッケージ名（コンテナイメージタグ用）
+      artifact_package: web
+      # ヘルスチェックのパス
+      healthcheck_path: /api/health/live
+
+    # デプロイ中断を避けたいケースが多いので、deployはキャンセルしない
+    concurrency:
+      # 短期間に複数回実行された場合、最新の処理のみを継続
+      group: ${{ github.workflow }}-${{ github.ref }}-apps-web-deploy
+      # 途中キャンセルしない（中途半端な適用を避ける）
+      cancel-in-progress: false
+
+    # 最小権限（checkout + OIDC）
+    permissions:
+      # リポジトリのコードの読み取りに必要
+      contents: read
+      # Google CloudのWIF（Workload Identity Federation）でOIDCトークンを発行するために必要
+      id-token: write

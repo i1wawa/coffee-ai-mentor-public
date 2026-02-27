@@ -1,0 +1,147 @@
+# .github/workflows/lint-and-test.yml
+# ======================================================================
+# 概要:
+# - 再利用可能な lint と test のワークフロー
+#
+# 契約:
+# - reusable workflow（workflow_call）として利用し、workflow_dispatch でも手動実行できる
+#
+# 前提:
+# - Vitest / Playwright は Firebase Auth Emulator を使用するため、FIREBASE_AUTH_EMULATOR_HOST と GCP_PROJECT_ID を与える
+# ======================================================================
+
+name: "Reusable: Lint & Test"
+
+on:
+  # 再利用ワークフローとして呼び出されたときに実行
+  workflow_call:
+    inputs:
+      # アプリの場所
+      app_path:
+        required: true
+        type: string
+
+  # 手動トリガーも可能にする
+  workflow_dispatch:
+    inputs:
+      app_path:
+        description: "App path relative to repo root"
+        required: true
+        type: string
+
+jobs:
+  test:
+    name: Lint & tests (${{ inputs.app_path }})
+
+    # Ubuntu-24.04で実行
+    runs-on: ubuntu-24.04
+
+    # 30分でタイムアウト
+    timeout-minutes: 30
+
+    # テストだけなのでread権限で十分
+    permissions:
+      contents: read
+
+    env:
+      # 他のツールにCI環境であることを知らせる
+      CI: true
+
+    # 作業ディレクトリを統一
+    defaults:
+      run:
+        working-directory: ${{ inputs.app_path }}
+
+    steps:
+      # 作業ランナー（仮想マシン）にリポジトリをクローン
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # pnpmをインストール（バージョンはpackage.jsonに依存）
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      # Nodeをインストール + pnpmキャッシュを有効化
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # ロックファイルに基づいて依存関係をインストール
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # テスト用の.env.localを用意
+      - name: Prepare test env file
+        run: | # shell
+          if [[ -f .env.example ]]; then
+            cp .env.example .env.local
+          fi
+
+      # Biomeでコードのリンティングを実行
+      - name: Lint (Biome)
+        run: pnpm lint
+
+      # Vitestで単体テストを1回のみ実行
+      - name: Unit tests (Vitest)
+        run: pnpm test:unit:ci
+
+      # Vitestで統合テストを1回のみ実行
+      - name: Integration tests (Vitest)
+        env:
+          # Next.js 起動時の環境変数バリデーション用（運用環境種別）
+          APP_ENV: dev
+          # Firebase Auth Emulator に Admin SDK を向ける
+          FIREBASE_AUTH_EMULATOR_HOST: 127.0.0.1:9099
+          # Firebase Auth Emulator の projectId をテスト用に固定
+          GCP_PROJECT_ID: demo-coffee-ai-mentor
+        run: pnpm test:integration:ci
+
+      # Playwrightのブラウザと依存関係をインストール
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps
+
+      # E2E用に前段TLS終端を起動（Next.js standalone はHTTPで起動）
+      - name: Start HTTPS reverse proxy (Caddy)
+        run: | # shell
+          docker run --rm -d --name e2e-caddy --network host \
+            --entrypoint caddy \
+            caddy:2.10.2 \
+            reverse-proxy \
+            --from https://127.0.0.1:3443 \
+            --to http://127.0.0.1:3000 \
+            --internal-certs
+
+      # Caddy の起動完了を待つ（TLS待受のみ確認。Next.js起動待ちはPlaywright側で実施）
+      - name: Wait for HTTPS reverse proxy (Caddy)
+        run: | # shell
+          for i in {1..10}; do
+            http_code="$(curl -ksS -o /dev/null -w '%{http_code}' https://127.0.0.1:3443/ || true)"
+            if [[ "$http_code" != "000" ]]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Caddy did not become ready in time" >&2
+          exit 1
+
+      # Playwrightでブラウザを使用したE2Eテストを実行
+      - name: E2E tests (Playwright)
+        env:
+          # Playwright はTLS終端後のHTTPS URLを叩く
+          TEST_BASE_URL: https://127.0.0.1:3443
+          # Next.js 起動時の環境変数バリデーション用（運用環境種別）
+          APP_ENV: dev
+          # Firebase Auth Emulator に Admin SDK を向ける
+          FIREBASE_AUTH_EMULATOR_HOST: 127.0.0.1:9099
+          # Firebase Auth Emulator の projectId をテスト用に固定
+          GCP_PROJECT_ID: demo-coffee-ai-mentor
+        run: pnpm test:e2e:ci
+
+      # 後続ステップの有無に関わらずプロキシを停止
+      - name: Stop HTTPS reverse proxy (Caddy)
+        if: always()
+        run: docker stop e2e-caddy || true

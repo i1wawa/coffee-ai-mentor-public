@@ -1,0 +1,24 @@
+{
+  // デフォルトのフォーマッターをBiomeに設定
+  "editor.defaultFormatter": "biomejs.biome",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.biome": "explicit",
+    "source.organizeImports.biome": "explicit"
+  },
+  // ファイル保存時に自動でフォーマットを実行
+  "editor.formatOnSave": true,
+
+  // JS/TS/JSON系はBiomeで整形
+  "[javascript][javascriptreact][typescript][typescriptreact][json][jsonc]": {
+    "editor.defaultFormatter": "biomejs.biome",
+    "editor.formatOnSave": true
+  },
+  // Biomeの設定ファイルをプロジェクトごとに必須化
+  "biome.requireConfiguration": true,
+
+  // Markdown/yml系はPrettierで整形
+  "[markdown][mdx][yaml][yml][dockercompose]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  }
+}
