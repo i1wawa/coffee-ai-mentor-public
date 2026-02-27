@@ -1,0 +1,347 @@
+# .github/workflows/terraform-prod-apps-web.yml
+# ======================================================================
+# 概要:
+# - prod の apps/web Terraform を plan/apply する
+#
+# 責務:
+# - PR: viewer 権限で plan（変更内容の確認）
+# - main push / 手動: runner 権限で plan を保存し、その成果物で apply
+# - WIF（Workload Identity Federation）で GCP 認証し、init/validate/plan/apply を実行
+#
+# 契約:
+# - 起動条件:
+#   - pull_request(main): 対象パスに差分があるときのみ
+#   - push(main): 対象パスに差分があるときのみ
+#   - workflow_dispatch: 常に実行可
+# - 差分が無い場合に apply しない
+# - plan 成果物（tfplan）をリポジトリや永続ストレージに残さない
+#
+# 前提:
+# - GitHub Environments の prod を使用する
+# - GCP Workload Identity Provider と viewer/runner の Service Account が利用可能
+# ======================================================================
+
+name: "Terraform: Plan & Apply (prod/apps-web)"
+
+on:
+  # infra/environments/prod/apps/web/かこのワークフローに影響するmainブランチへのPR時に実行
+  pull_request:
+    branches: [main]
+    # 変更があった場合のみ起動
+    paths:
+      # Terraform管理下のファイル
+      - 'infra/environments/prod/apps/web/**'
+      # ドキュメントは除外
+      - '!infra/environments/prod/apps/web/**/*.md'
+      - '!infra/environments/prod/apps/web/**/*.mdx'
+      # このワークフロー自身
+      - '.github/workflows/terraform-prod-apps-web.yml'
+
+  # infra/environments/prod/apps/web/に影響するmainブランチへのpush時に実行
+  push:
+    branches: [main]
+    paths:
+      - 'infra/environments/prod/apps/web/**'
+      # ドキュメントは除外
+      - '!infra/environments/prod/apps/web/**/*.md'
+      - '!infra/environments/prod/apps/web/**/*.mdx'
+
+  # 手動トリガーも可能にする
+  workflow_dispatch:
+
+permissions:
+  # リポジトリのコードの読み取りに必要
+  contents: read
+  # Google CloudのWIF（Workload Identity Federation）でOIDCトークンを発行するために必要
+  id-token: write
+
+env:
+  # --- Terraform CLI環境に必要な環境変数（環境変数名はTerraformの仕様に準拠が必須） ---
+  # TerraformがCI環境で動いていることを示す（ログ整形や挙動の一部に影響）
+  TF_IN_AUTOMATION: "true"
+  # 対話入力を禁止（applyで止まらないように）
+  TF_INPUT: "false"
+  # Providerプラグインのキャッシュディレクトリ（actions/cacheでキャッシュする先）
+  TF_PLUGIN_CACHE_DIR: "${{ github.workspace }}/.terraform.d/plugin-cache"
+
+  # --- GitHub Environment variablesから取得する値群 ---
+  # Google Cloud：OIDC（Workload Identity Provider）用のプロバイダリソース名
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  # Google Cloud：Terraform閲覧権限を持つサービスアカウントのメールアドレス
+  GCP_WEB_GHA_VIEWER_SERVICE_ACCOUNT_EMAIL: ${{ vars.GCP_WEB_GHA_VIEWER_SERVICE_ACCOUNT_EMAIL }}
+  # Google Cloud：Terraform実行権限を持つサービスアカウントのメールアドレス
+  GCP_WEB_GHA_RUNNER_SERVICE_ACCOUNT_EMAIL: ${{ vars.GCP_WEB_GHA_RUNNER_SERVICE_ACCOUNT_EMAIL }}
+
+  # ------ GitHub Environment Secretsから取得する値群 ------
+  # ※step 内で直接参照するため、ここでは一覧としてまとめているだけでコメントアウトしている
+  # Terraform：Sentry provider auth
+  # ${{ secrets.TF_VAR_SENTRY_AUTH_TOKEN }}
+  # Terraform：Firebase Google OAuth Client Secret
+  # ${{ secrets.TF_VAR_FIREBASE_GOOGLE_OAUTH_CLIENT_SECRET }}
+
+jobs:
+  # どのroot moduleに変更が入ったかを検出して、後続jobの分岐に使う
+  detect:
+    name: Detect changes for apps/web
+    runs-on: ubuntu-24.04
+    outputs:
+      # コミットの差分のtrue/falseをneeds.detect.outputs.*で参照できるように
+      prod_web_changed: ${{ steps.diff.outputs.prod_web_changed }}
+      workflow_changed: ${{ steps.diff.outputs.workflow_changed }}
+    steps:
+      # 作業ランナー（仮想マシン）にリポジトリをクローン
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # 履歴を省略しない（差分検出のために必要）
+          fetch-depth: 0
+
+      - id: diff
+        name: Detect changes
+        shell: bash
+        run: | # shell
+          # 安全のため未定義変数の参照やコマンド失敗で中断
+          set -euo pipefail
+
+          # ------ イベント種類によって差分の取り方が違うので分岐 ------
+          # PR: base.sha -> head.sha
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+
+          # Push: before -> after
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+
+          # その他のイベント（手動実行など）は差分検出しない
+          else
+            echo "prod_web_changed=false" >> "$GITHUB_OUTPUT"
+            echo "workflow_changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # 変更ファイル一覧を取得（差分がなくても落とさないために || true）
+          # ※初回pushや履歴書き換えは差分が取れないことがあるため注意
+          if ! CHANGED="$(git diff --name-only "$BASE" "$HEAD")"; then
+            echo "WARN: git diff failed for BASE=$BASE HEAD=$HEAD; treating as no changes" >&2
+            CHANGED=""
+          fi
+          printf '%s\n' "$CHANGED"
+
+          # このワークフローに変更があるかチェック
+          WORKFLOW_FILE=".github/workflows/terraform-prod-apps-web.yml"
+          if printf '%s\n' "$CHANGED" | grep -Fxq "$WORKFLOW_FILE"; then
+            echo "workflow_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "workflow_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # on.pathsの除外と整合させる（ドキュメントは除外）
+          CHANGED="$(
+            { printf '%s\n' "$CHANGED" \
+                | grep -vE '^infra/environments/prod/apps/web/.*\.mdx?$'
+            } || true
+          )"
+
+          # infra/environments/prod/apps/web/配下に変更があればtrue
+          if printf '%s\n' "$CHANGED" | grep -qE '^infra/environments/prod/apps/web/'; then
+            echo "prod_web_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prod_web_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  plan_prod_web:
+    name: Terraform Plan for Apps Web Prod
+    needs: [detect]
+    # mainブランチへのPRで、infra/environments/prod/apps/web/かこのワークフローに差分があるときだけ実行
+    if: |
+      github.event_name == 'pull_request'
+        && (needs.detect.outputs.prod_web_changed == 'true' || needs.detect.outputs.workflow_changed == 'true')
+    runs-on: ubuntu-24.04
+    # GitHub Environmentsのprodを使用（保護ルール/承認/secret制御などに使える）
+    environment: prod
+    concurrency:
+      # 短期間に複数回実行された場合、最新の処理のみを継続
+      group: terraform-plan-prod-web-${{ github.event.pull_request.number }}
+      # 途中キャンセルを許可
+      cancel-in-progress: true
+    steps:
+      # 作業ランナー（仮想マシン）にリポジトリをクローン
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # デバッグ用：OIDCトークンのペイロードを表示
+      - name: Debug OIDC claims (payload only)
+        # 存在しない変数で絶対実行されないように（実行時はコメントアウトする）
+        if: vars.DEBUG_OIDC == 'true'
+        shell: bash
+        run: | # python
+          # 安全のため未定義変数の参照やコマンド失敗で中断
+          set -euo pipefail
+
+          # GitHub ActionsのOIDCトークンエンドポイントからトークンを取得
+          AUDIENCE="${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
+
+          RESPONSE="$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}")"
+
+          TOKEN="$(printf '%s' "$RESPONSE" | jq -r '.value')"
+          if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
+            echo "Failed to fetch OIDC token. Response:" >&2
+            echo "$RESPONSE" >&2
+            exit 1
+          fi
+
+          TOKEN="$TOKEN" python - <<'PY'
+          import os, json, base64
+          token = os.environ["TOKEN"]
+          # JWT: header.payload.signature の2番目が payload
+          payload_b64 = token.split(".")[1]
+          # パディング調整してdecode
+          payload = base64.urlsafe_b64decode(payload_b64 + "==")
+          print(json.dumps(json.loads(payload), indent=2, ensure_ascii=False))
+          PY
+
+      - name: Authenticate to Google Cloud (WIF) - viewer only
+        # GitHub OIDC -> Google WIFで短命クレデンシャルを取得
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_WEB_GHA_VIEWER_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          # Terraformコード側で使っているバージョンに合わせる
+          terraform_version: "~1.14.0"
+          # wrapperを無効化（ログ出力が素直になり、plan/apply の挙動差を減らす）
+          terraform_wrapper: false
+
+      - name: Prepare plugin cache dir
+        # Providerプラグインのキャッシュ先を作成
+        run: mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+
+      - name: Cache Terraform plugins
+        # Providerのダウンロードを高速化（.terraform.lock.hclが変わったらキャッシュ更新）
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          # prod-webのlockfileをキーにする（bootstrapとprovider構成が違うため）
+          key: ${{ runner.os }}-tf-plugins-prod-web-${{ hashFiles('infra/environments/prod/apps/web/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-tf-plugins-prod-web-
+
+      - name: Terraform init
+        run: | # shell
+          terraform -chdir=infra/environments/prod/apps/web init -no-color -lock-timeout=5m
+
+      - name: Terraform validate
+        run: | # shell
+          terraform -chdir=infra/environments/prod/apps/web validate -no-color
+
+      - name: Terraform plan
+        env:
+          # Terraform：Sentry provider auth
+          SENTRY_AUTH_TOKEN: ${{ secrets.TF_VAR_SENTRY_AUTH_TOKEN }}
+          # Terraform：Firebase Google OAuth Client Secret
+          TF_VAR_firebase_google_oauth_client_secret: ${{ secrets.TF_VAR_FIREBASE_GOOGLE_OAUTH_CLIENT_SECRET }}
+        run: | # shell
+          terraform -chdir=infra/environments/prod/apps/web plan -no-color -lock-timeout=5m
+
+      - name: Cleanup tfplan
+        # ここまでに失敗しても必ず実行
+        if: always()
+        # plan 出力に secrets などの sensitive が載るのを防ぐため、plan / apply 後に削除
+        run: | # shell
+          rm -f infra/environments/prod/apps/web/tfplan
+
+  apply_prod_web:
+    name: Terraform Apply for Apps Web Prod
+    needs: [detect]
+    # infra/environments/prod/apps/web/にのみ差分があるときのmainブランチへのpush時か、手動実行したときだけ実行
+
+    if: |
+      github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && needs.detect.outputs.prod_web_changed == 'true')
+    runs-on: ubuntu-24.04
+    # GitHub Environmentsのprodを使用（保護ルール/承認/secret制御などに使える）
+    # - パブリックリポジトリや有料プランなら、ここに承認ゲートを設けても良い（GitHub EnvironmentsでRequired reviewersを設定）
+    environment: prod
+    concurrency:
+      # 短期間に複数回実行された場合も、すべての処理を継続
+      group: terraform-apply-prod-web
+      # 途中キャンセルしない（中途半端な適用を避ける）
+      cancel-in-progress: false
+    steps:
+      # 作業ランナー（仮想マシン）にリポジトリをクローン
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Authenticate to Google Cloud (WIF) - runner only
+        # GitHub OIDC -> Google WIFで短命クレデンシャルを取得
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_WEB_GHA_RUNNER_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          # Terraformコード側で使っているバージョンに合わせる
+          terraform_version: "~1.14.0"
+          # wrapperを無効化（ログ出力が素直になり、plan/apply の挙動差を減らす）
+          terraform_wrapper: false
+
+      - name: Prepare plugin cache dir
+        # Providerプラグインのキャッシュ先を作成
+        run: mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+
+      - name: Cache Terraform plugins
+        # Providerのダウンロードを高速化（.terraform.lock.hclが変わったらキャッシュ更新）
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          # prod-webのlockfileをキーにする（bootstrapとprovider構成が違うため）
+          key: ${{ runner.os }}-tf-plugins-prod-web-${{ hashFiles('infra/environments/prod/apps/web/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-tf-plugins-prod-web-
+
+      - name: Terraform init
+        run: | # shell
+          terraform -chdir=infra/environments/prod/apps/web init -no-color -lock-timeout=5m
+
+      - name: Terraform validate
+        run: | # shell
+          terraform -chdir=infra/environments/prod/apps/web validate -no-color
+
+      - name: Terraform plan (saved)
+        env:
+          # Terraform：Sentry provider auth
+          SENTRY_AUTH_TOKEN: ${{ secrets.TF_VAR_SENTRY_AUTH_TOKEN }}
+          # Terraform：Firebase Google OAuth Client Secret
+          TF_VAR_firebase_google_oauth_client_secret: ${{ secrets.TF_VAR_FIREBASE_GOOGLE_OAUTH_CLIENT_SECRET }}
+        # apply前に必ずplanを作り、その成果物(tfplan)をapplyに渡す
+        # （apply時にdriftが出てplanと違う事故を減らす）
+        run: | # shell
+          terraform -chdir=infra/environments/prod/apps/web plan -no-color -lock-timeout=5m -out=tfplan
+
+      - name: Terraform apply
+        env:
+          # Terraform：Sentry provider auth
+          SENTRY_AUTH_TOKEN: ${{ secrets.TF_VAR_SENTRY_AUTH_TOKEN }}
+          # Terraform：Firebase Google OAuth Client Secret
+          TF_VAR_firebase_google_oauth_client_secret: ${{ secrets.TF_VAR_FIREBASE_GOOGLE_OAUTH_CLIENT_SECRET }}
+        # -auto-approveで自動適用（CI向け）
+        run: | # shell
+          terraform -chdir=infra/environments/prod/apps/web apply -no-color -lock-timeout=5m -auto-approve tfplan
+
+      - name: Cleanup tfplan
+        # ここまでに失敗しても必ず実行
+        if: always()
+        # plan 出力に secrets などの sensitive が載るのを防ぐため、plan / apply 後に削除
+        run: | # shell
+          rm -f infra/environments/prod/apps/web/tfplan

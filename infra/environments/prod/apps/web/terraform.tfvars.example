@@ -1,0 +1,55 @@
+# infra/environments/prod/apps/web/terraform.tfvars
+
+# ------------------------------------------------------------
+# 基本
+# ------------------------------------------------------------
+
+project_id = "coffee-ai-mentor-prod"
+region     = "asia-northeast1"
+
+# ------------------------------------------------------------
+# Google Cloud Run
+# ------------------------------------------------------------
+
+# 構築にイメージが必要なため、コンテナイメージを指定（初回のみ使用）
+container_image = "asia-northeast1-docker.pkg.dev/coffee-ai-mentor-prod/coffee-ai-mentor/web:main"
+
+# ------------------------------------------------------------
+# Google Cloud Artifact Registry
+# - コンテナイメージ削除をdry-runで動かすか
+# ------------------------------------------------------------
+
+artifact_cleanup_dry_run = true
+
+# ------------------------------------------------------------
+# Google Cloud Workload Identity Federation (WIF)
+# - GitHub Actionsからデプロイする場合、リポジトリとref（ブランチやタグ）で許可するデプロイ元を限定
+# ------------------------------------------------------------
+
+github_repository  = "your-org/coffee-ai-mentor"
+github_allowed_ref = "refs/heads/main"
+
+# ------------------------------------------------------------
+# Firebase Auth (Identity Platform)
+# - 直接UIからOAuth同意画面を設定し、認証情報を作成して取得する必要あり（Terraformでは不可）
+# ------------------------------------------------------------
+
+firebase_google_oauth_client_id     = "YOUR_GOOGLE_OAUTH_CLIENT_ID"
+
+########################## Secrets ###########################
+
+# ------------------------------------------------------------
+# Firebase Auth (Identity Platform)
+# - 直接UIからOAuth同意画面を設定し、認証情報を作成して取得する必要あり（Terraformでは不可）
+# ------------------------------------------------------------
+
+# GitHub Actionsのsecretから TF_VAR_firebase_google_oauth_client_secret 経由で値を渡す想定
+# firebase_google_oauth_client_secret =
+
+# ------------------------------------------------------------
+# Sentry
+# ------------------------------------------------------------
+
+# GitHub Actionsのsecretから TF_VAR_SENTRY_AUTH_TOKEN 経由で値を渡す想定
+# - token 変数を直接指定すると、上記で渡せない＆Terraformのstateファイルに平文で保存されてしまうのでやらない
+# sentry_auth_token = "YOUR_SENTRY_AUTH_TOKEN"

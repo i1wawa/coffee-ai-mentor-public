@@ -1,0 +1,53 @@
+# apps/web/.gitignore
+# ========================================================
+# 概要:
+# - apps/web（Next.js）向けの Git 無視設定
+# - 生成物・キャッシュ・ローカル依存物・機微情報（鍵/証明書/環境変数）をコミットしない
+#
+# 責務:
+# - 依存物（node_modules 等）、ビルド生成物（.next/out/build 等）、テスト出力（coverage 等）を除外する
+# - ローカル専用の一時ファイル（ログ、OS生成物、ツールのキャッシュ）を除外する
+# - 秘密情報（.env の実値、秘密鍵/証明書）を除外し、例外として .env.example は追跡する
+# ========================================================
+
+# dependencies
+node_modules
+
+# testing
+coverage
+playwright-report
+test-results
+.playwright
+.vitest
+certificates
+
+# next.js
+.next/
+out/
+
+# production
+build
+
+# misc
+.DS_Store
+
+# debug
+*.log
+.pnpm-debug.log*
+
+# env files
+.env*
+!.env.example
+
+# secrets
+*.pem
+*.key
+*.crt
+*.cer
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Prisma
+/src/generated/prisma

@@ -1,0 +1,4 @@
+{
+  // ルートのbiome.jsoncを継承
+  "extends": "//"
+}

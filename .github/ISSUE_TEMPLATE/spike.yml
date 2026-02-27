@@ -1,0 +1,146 @@
+# .github/ISSUE_TEMPLATE/spike.yml
+
+name: "spike"
+description: "方針を決定するための調査"
+title: "spike: "
+labels: ["type: spike"]
+assignees: []
+
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: 概要
+      description: "～によって～を可能にするか、短く明確に"
+      placeholder: "チャットLLMのストリーミング方式を調査して、採用方針を決められるようにする"
+    validations:
+      required: true
+
+  - type: textarea
+    id: relations
+    attributes:
+      label: 関連
+      description: "関係するissue・PR・仕様書など"
+      placeholder: |
+        - PR
+          - #34
+        - 仕様
+          - docs/design/chat-streaming.md
+      value: |
+        - ドキュメント
+          - []()
+    validations:
+      required: false
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目的
+      description: "何を解決し、どう良くなるか"
+      placeholder: |
+        - 課題：チャットLLMのレスポンス表示方式が決まっておらず、次のissueを起こせない状態になっている
+        - 経緯：SSE / WebSocket / ポーリングの候補が並立しており、前提条件と実装コストの比較が未整理
+        - 期待：主要なストリーミング方式を比較し、次に作るissueで採用する方式を1つに絞れるようにする
+      value: |
+        - 課題：
+        - 経緯：
+        - 期待：
+    validations:
+      required: true
+
+  ###### <spike固有フィールド> ######
+  - type: textarea
+    id: research_questions
+    attributes:
+      label: 問い・仮説
+      description: "この調査で明らかにしたい問い・検証したい仮説"
+      placeholder: |
+        - 問い：
+          - SSE / WebSocket / ポーリングのうち、現行インフラで最も実装コストが低いのはどれか？
+          - ユーザー体験として体感レイテンシの差はどの程度あるか？
+        - 仮説：
+          - 初期段階ではSSEを採用するのが、開発コストと体験のバランスが良い
+      value: |
+        - 問い：
+        - 仮説：
+    validations:
+      required: true
+  ###### </spike固有フィールド> ######
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: 受け入れ条件
+      description: |
+        - [docs/CONTRIBUTING.md「6. DoD（完了の定義）」](https://github.com/i1wawa/cococoffee/blob/main/docs/CONTRIBUTING.md#6-dod完了の定義)の他にあれば
+        - Gherkinステップ（Given 条件/When 操作/Then 結果）など
+      placeholder: |
+        - SSE・WebSocket・ポーリングの少なくとも3方式について、メリット・デメリット・前提条件が比較されている
+        - 最低1つのPoCコード（ローカルで動作確認できるレベル）が用意されている
+        - docs/spikes/chat-streaming-options.mdに「結論」「採用しない方式の理由」が1文ずつ明記されている
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: スコープ
+      description: "やる・やらないの境界を明示"
+      placeholder: |
+        - 対象：ストリーミング方式の調査・PoC実装・比較ドキュメントの作成
+        - 含めない範囲：本番コードへの組み込み、監視・アラート設定、UIの細かなデザイン調整
+      value: |
+        - 対象：
+        - 含めない範囲：
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk_categories
+    attributes:
+      label: リスク種類
+      description: "種類ごとに該当有無をチェック（☐／☒）"
+      placeholder: |
+        |該当|種類|観点例|
+        |---|---|---|
+        |☐|セキュリティ|認証・セッション・権限・入出力・暗号・通信・ログ・設定・依存|
+        |☐|プライバシー・法務||
+        |☐|ライセンス||
+        |☐|パフォーマンス|レイテンシ・容量・実行時間|
+        |☐|互換性|環境・依存・DB・API・テスト|
+        |☐|費用・サステナビリティ||
+        |☐|UX・アクセシビリティ|一貫性・期待整合・認知量・操作性・デザイン性・倫理|
+        |☐|DevEx|解析容易性・変更容易性・テスト容易性・情報整合性・メトリクス・ログ・作業量|
+        |☐|該当なし||
+      value: |
+        |該当|種類|観点例|
+        |---|---|---|
+        |☐|セキュリティ|認証・セッション・権限・入出力・暗号・通信・ログ・設定・依存|
+        |☐|プライバシー・法務||
+        |☐|ライセンス||
+        |☐|パフォーマンス|レイテンシ・容量・実行時間|
+        |☐|互換性|環境・依存・DB・API・テスト|
+        |☐|費用・サステナビリティ||
+        |☐|UX・アクセシビリティ|一貫性・期待整合・認知量・操作性・デザイン性・倫理|
+        |☐|DevEx|解析容易性・変更容易性・テスト容易性・情報整合性・メトリクス・ログ・作業量|
+        |☐|該当なし||
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk_detail
+    attributes:
+      label: リスク詳細
+      description: "与え得るリスクの詳細"
+      placeholder: |
+        - パフォーマンス：PoCコードを本番向けに十分チューニングせず採用すると、想定外のレイテンシ増大を招く可能性がある
+        - DevEx：調査内容が口頭ベースに留まると、spikeの意図が共有されず、別メンバーが同じ調査を繰り返すリスクがある
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ※以下を満たすこと
+        - [docs/CONTRIBUTING.md「4. DoR（着手可能の定義）」](https://github.com/i1wawa/cococoffee/blob/main/docs/CONTRIBUTING.md#4-dor着手可能の定義)
+        - [docs/CONTRIBUTING.md「6. DoD（完了の定義）」](https://github.com/i1wawa/cococoffee/blob/main/docs/CONTRIBUTING.md#6-dod完了の定義)

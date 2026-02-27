@@ -1,0 +1,164 @@
+# compose.yml
+# ================================================================
+# 概要:
+# - 開発・ローカル検証用の Docker Compose 構成
+#
+# 責務:
+# - web の実行形態を 2 系統で提供する（dev / prod）
+# - dev では Firebase Auth Emulator も Compose 内で起動する
+# - それぞれのポート・環境変数・ヘルスチェックを定義する
+#
+# 前提:
+# - apps/web/Dockerfile が dev / runner ターゲットを持つ
+# - ブラウザ側 Firebase SDK はホストの 127.0.0.1:9099 に接続する
+# - サーバ側（web-dev / Firebase Admin SDK）は auth-emulator:9099 に接続する
+# - 本番では直接 Dockerfile をビルド/実行
+# ================================================================
+
+services:
+  # Firebase Auth Emulator（開発用）
+  auth-emulator:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    ports:
+      - "${AUTH_EMULATOR_HOST_PORT:-9099}:9099"
+    env_file:
+      - path: apps/web/.env.local
+        required: false
+    environment:
+      - FIREBASE_AUTH_EMULATOR_HOST=0.0.0.0:9099
+    init: true
+    command:
+      - pnpm
+      - exec
+      - firebase
+      - emulators:start
+      - --only
+      - auth
+      - --project
+      - demo-coffee-ai-mentor
+
+  # ローカルで本番に近い動きを確認する場合に使用
+  web-prod:
+    profiles: ["prod"]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runner
+    ports:
+      - "${WEB_PROD_HOST_PORT:-3000}:8080"
+    env_file:
+      - path: apps/web/.env.local
+        required: false
+    init: true
+    healthcheck:
+      test:
+        - CMD
+        - /nodejs/bin/node
+        - -e
+        - | # javascript
+          const http = require('http');
+          const port = Number(process.env.PORT || 3000);
+
+          // HTTPリクエストを送信
+          const req = http.get({
+            host: '127.0.0.1',
+            port,
+            path: '/api/health/live'
+          }, (res) => {
+            // ステータスコードを取得
+            const code = res.statusCode || 500;
+
+            // 500未満なら0（正常）、500以上なら1（異常）
+            process.exit(code < 500 ? 0 : 1);
+          });
+
+          // 接続拒否やタイムアウトなどは1（異常）
+          req.on('error', () => process.exit(1));
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  # ホットリロードできる開発用コンテナ
+  web-dev:
+    profiles: ["dev"]
+    depends_on:
+      - auth-emulator
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    ports:
+      - "${WEB_DEV_HOST_PORT:-3000}:3000"
+    env_file:
+      - path: apps/web/.env.local
+        required: true
+    volumes:
+      # ホストで信頼済みの開発証明書をコンテナ内で使う
+      - ./certificates:/workspace/certificates:ro
+    environment:
+      # Dockerfileの環境変数を開発環境用に上書き
+      - NODE_ENV=development
+      - HOSTNAME=0.0.0.0
+      - PORT=3000
+      # サーバ側（Firebase Admin SDK）は Compose 内 service を参照する
+      - FIREBASE_AUTH_EMULATOR_HOST=auth-emulator:9099
+    init: true
+    command: ["pnpm", "dev:docker"]
+    develop:
+      # ホットリロード設定
+      watch:
+        # アプリ本体: 同期（.next等は同期対象外）
+        - action: sync
+          path: ./apps/web
+          target: /workspace/apps/web
+          initial_sync: true
+          ignore:
+            - node_modules/
+            - .next/
+            - out/
+            - coverage/
+            - playwright-report/
+            - test-results/
+            - "*.log"
+        # 依存関係変更: rebuild
+        - action: rebuild
+          path: ./pnpm-lock.yaml
+        - action: rebuild
+          path: ./pnpm-workspace.yaml
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./apps/web/package.json
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - | # javascript
+          const http = require('http');
+          const port = Number(process.env.PORT || 3000);
+
+          // HTTPリクエストを送信
+          const req = http.get({
+            host: '127.0.0.1',
+            port,
+            path: '/api/health/live'
+          }, (res) => {
+            // ステータスコードを取得
+            const code = res.statusCode || 500;
+
+            // 500未満なら0（正常）、500以上なら1（異常）
+            process.exit(code < 500 ? 0 : 1);
+          });
+
+          // 接続拒否やタイムアウトなどは1（異常）
+          req.on('error', () => process.exit(1));
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 30s

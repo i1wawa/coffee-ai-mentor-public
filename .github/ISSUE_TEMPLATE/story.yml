@@ -1,0 +1,233 @@
+# .github/ISSUE_TEMPLATE/story.yml
+
+name: "story"
+description: "ユーザーストーリー単位で機能追加"
+title: "story: "
+labels: ["type: story"]
+assignees: []
+
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: 概要
+      description: "～によって～を可能にするか、短く明確に"
+      placeholder: "商品検索のソート機能を追加して、ユーザーが価格順に並べ替えできるようにする"
+    validations:
+      required: true
+
+  - type: textarea
+    id: relations
+    attributes:
+      label: 関連
+      description: "関係するissue・PR・仕様書など"
+      placeholder: |
+        - PR
+          - #34
+        - ドキュメント
+          - docs/design/chat-streaming.md
+      value: |
+        - ドキュメント
+          - []()
+    validations:
+      required: false
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目的
+      description: "何を解決し、どう良くなるか"
+      placeholder: |
+        - 課題：ユーザーが目的の商品にたどり着くまで時間がかかっている
+        - 経緯：検索結果の並び順が固定で、比較したい観点（価格・人気など）に合わせて確認しづらい
+        - 期待：ソート機能で検索結果を整理しやすくなり、購入体験が向上する
+      value: |
+        - 課題：
+        - 経緯：
+        - 期待：
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: 受け入れ条件
+      description: |
+        - [docs/CONTRIBUTING.md「6. DoD（完了の定義）」](https://github.com/i1wawa/cococoffee/blob/main/docs/CONTRIBUTING.md#6-dod完了の定義)の他にあれば
+        - Gherkinステップ（Given 条件/When 操作/Then 結果）など
+      placeholder: |
+        - 条件：フロントで無効値を入力  
+          操作：保存ボタンを押す  
+          結果：「入力値が不正です」と表示
+    validations:
+      required: true
+
+  ###### <feat固有フィールド> ######
+  - type: textarea
+    id: story
+    attributes:
+      label: ストーリー
+      description: |
+        - ユーザーストーリー（As ペルソナ/When できること/So that 心理的メリット）
+        - ジョブストーリー（When 状況／I want 動機／So I can 価値）など
+      placeholder: |
+        - ペルソナ：ショッピングユーザー
+        - できること：価格順に並べ替えて比較できる
+        - 心理的メリット：予算内の商品を素早く見つけられる
+    validations:
+      required: false
+  ###### </feat固有フィールド> ######
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: スコープ
+      description: "やる・やらないの境界を明示"
+      placeholder: |
+        - 対象：バックエンドAPIとUIの変更
+        - 含めない範囲：テストデータの投入スクリプト
+      value: |
+        - 対象：
+        - 含めない範囲：
+    validations:
+      required: false
+
+  - type: textarea
+    id: risk_categories
+    attributes:
+      label: リスク種類
+      description: "種類ごとに該当有無をチェック（☐／☒）"
+      placeholder: |
+        |該当|種類|観点例|
+        |---|---|---|
+        |☐|セキュリティ|認証・セッション・権限・入出力・暗号・通信・ログ・設定・依存|
+        |☐|プライバシー・法務||
+        |☐|ライセンス||
+        |☐|パフォーマンス|レイテンシ・容量・実行時間|
+        |☐|互換性|環境・依存・DB・API・テスト|
+        |☐|費用・サステナビリティ||
+        |☐|UX・アクセシビリティ|一貫性・期待整合・認知量・操作性・デザイン性・倫理|
+        |☐|DevEx|解析容易性・変更容易性・テスト容易性・情報整合性・メトリクス・ログ・作業量|
+        |☐|該当なし||
+      value: |
+        |該当|種類|観点例|
+        |---|---|---|
+        |☐|セキュリティ|認証・セッション・権限・入出力・暗号・通信・ログ・設定・依存|
+        |☐|プライバシー・法務||
+        |☐|ライセンス||
+        |☐|パフォーマンス|レイテンシ・容量・実行時間|
+        |☐|互換性|環境・依存・DB・API・テスト|
+        |☐|費用・サステナビリティ||
+        |☐|UX・アクセシビリティ|一貫性・期待整合・認知量・操作性・デザイン性・倫理|
+        |☐|DevEx|解析容易性・変更容易性・テスト容易性・情報整合性・メトリクス・ログ・作業量|
+        |☐|該当なし||
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk_detail
+    attributes:
+      label: リスク詳細
+      description: "与え得るリスクの詳細"
+      placeholder: |
+        - セキュリティ：ユーザー入力をソート条件として受けることで、SQLインジェクション／XSSのリスク
+        - プライバシー：顧客購入履歴をソート条件として扱う際、個人識別可能な属性が漏洩するリスク
+        - 費用コスト：ソート用のインデックス追加により、ストレージ圧迫のリスク
+        - 互換性：APIパラメータを追加・変更により、旧バージョンが動作しなくなるリスク
+    validations:
+      required: true
+
+  ###### <epic・story・bugfix・maintenance固有フィールド> ######
+  - type: dropdown
+    id: data_strategy
+    attributes:
+      label: データスキーマ移行戦略
+      description: "データスキーマ移行をどう工夫するか"
+      options:
+        - 変更なし
+        - 拡張のみ
+        - expand and contract（後方互換のため拡張のみ行い、安全確認後に不要部を削除）
+        - dual-write and backfill（新旧保存場所へ同時書き込み、旧データを補完）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: release_strategy
+    attributes:
+      label: リリース露出戦略
+      description: |
+        - どのユーザー群にどの程度公開するか
+        - 前提：フィーチャーフラグ（機能やユーザー範囲をフラグでON／OFF可能に）
+      options:
+        - 対象外（機能変更なし or 本番デプロイなし）
+        - A/Bテスト（複数バージョンを公開し、効果検証）
+        - ロールアウト（公開するユーザー集団を段階的に拡大）
+        - シャドーテスト（応答は旧バージョンで行い、新バージョンはトラフィック処理をテスト）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deploy_strategy
+    attributes:
+      label: デプロイ戦略
+      description: "どこまで慎重な更新を行うか"
+      options:
+        - 対象外（本番デプロイなし）
+        - インプレース（上書き、メンテナンス通知必須）
+        - リクリエイト（旧インスタンス停止、新インスタンス作成）
+        - ブルーグリーン（2つの本番環境を用意し、即座に旧バージョンに戻せるように）
+        - カナリア（ロードバランサーで振り分けているインスタンスの一部を更新、トラフィックを段階的に）
+        - ローリングアップデート（ロードバランサーで振り分けているインスタンスを1つずつ更新し、チェック）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: downtime
+    attributes:
+      label: ダウンタイム
+      description: "システム停止時間がどれだけ発生するか"
+      options:
+        - なし
+        - 短時間（5分未満）
+        - 長時間（5分以上）
+    validations:
+      required: true
+
+  - type: textarea
+    id: rollback_strategy
+    attributes:
+      label: ロールバック戦略
+      description: "どの層をどのように戻すか（☐／☒）"
+      placeholder: |
+        |該当|種類|内容|
+        |---|---|---|
+        |☐|設定|フィーチャーフラグ切替（機能／ユーザー／地域）|
+        |☐|設定|環境変数／Secretsを戻す|
+        |☐|設定|外部依存の設定を戻す|
+        |☐|コード|Revert PR・Commit|
+        |☐|データ|論理バックアップから復元（SQLクエリ）|
+        |☐|データ|物理バックアップから復元（DBMSバックアップ／ストレージバックアップ）|
+        |☐|データ|ロールフォワード（修復マイグレーション適用）|
+        |☐|デプロイ|旧アーティファクトへロールバック（タグ／リリース／ビルド／イメージ）|
+        |☐|インフラ|トラフィック切替（ロードバランサー）|
+      value: |
+        |該当|種類|内容|
+        |---|---|---|
+        |☐|設定|フィーチャーフラグ切替（機能／ユーザー／地域）|
+        |☐|設定|環境変数／Secretsを戻す|
+        |☐|コード|Revert PR・Commit|
+        |☐|データ|論理バックアップから復元（SQLクエリ）|
+        |☐|データ|物理バックアップから復元（DBMSバックアップ／ストレージバックアップ）|
+        |☐|データ|ロールフォワード（修復マイグレーション適用）|
+        |☐|デプロイ|旧アーティファクトへロールバック（タグ／リリース／ビルド／イメージ）|
+        |☐|インフラ|トラフィック切替（ロードバランサー）|
+    validations:
+      required: true
+  ###### </epic・story・bugfix・maintenance固有フィールド> ######
+
+  - type: markdown
+    attributes:
+      value: |
+        ※以下を満たすこと
+        - [docs/CONTRIBUTING.md「4. DoR（着手可能の定義）」](https://github.com/i1wawa/cococoffee/blob/main/docs/CONTRIBUTING.md#4-dor着手可能の定義)
+        - [docs/CONTRIBUTING.md「6. DoD（完了の定義）」](https://github.com/i1wawa/cococoffee/blob/main/docs/CONTRIBUTING.md#6-dod完了の定義)

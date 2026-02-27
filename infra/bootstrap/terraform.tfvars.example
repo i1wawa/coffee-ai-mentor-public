@@ -1,0 +1,18 @@
+project_id        = "coffee-ai-mentor-bootstrap"
+state_bucket_name = "coffee-ai-mentor-bootstrap-tfstate-us-central1"
+
+location      = "us-central1"
+storage_class = "STANDARD"
+
+# GitHubのVariablesから設定
+bucket_admin_members = [
+  "user:you@example.com",
+]
+
+bucket_object_admin_members = [
+  "user:you@example.com",
+]
+
+bucket_object_viewer_members = [
+  "user:you@example.com",
+]

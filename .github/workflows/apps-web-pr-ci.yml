@@ -1,0 +1,128 @@
+# .github/workflows/apps-web-pr-ci.yml
+# ======================================================================
+# 概要:
+# - main 向け PR で apps/web に影響する変更があるときだけ実行する PR CI
+# - 差分検出で実行要否を判定し、必要時のみ lint/test（reusable workflow）を呼ぶ
+#
+# 契約:
+# - 対象: main 向け pull_request
+# - トリガ: apps/web の変更
+# ======================================================================
+
+name: "Web: PR CI (apps/web)"
+
+on:
+  # apps/webアプリに影響するmainブランチへのPR時に実行
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/web/**'
+      # ドキュメントは除外
+      - '!apps/web/**/*.md'
+      - '!apps/web/**/*.mdx'
+      # このワークフローや依存関係に変更があった場合も実行
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/apps-web-pr-ci.yml'
+      - '.github/workflows/lint-and-test.yml'
+
+concurrency:
+  # 短期間に複数回実行された場合、最新の処理のみを継続
+  group: pr-main-apps-web-${{ github.event.pull_request.number || github.run_id }}
+  # 途中キャンセルを許可
+  cancel-in-progress: true
+
+jobs:
+  # どのroot moduleに変更が入ったかを検出して、後続jobの分岐に使う
+  detect:
+    name: Detect changes for apps/web
+    runs-on: ubuntu-24.04
+    outputs:
+      # コミットの差分のtrue/falseをneeds.detect.outputs.*で参照できるように
+      prod_web_changed: ${{ steps.diff.outputs.prod_web_changed }}
+      workflow_or_dependency_changed: ${{ steps.diff.outputs.workflow_or_dependency_changed }}
+    steps:
+      # 作業ランナー（仮想マシン）にリポジトリをクローン
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # 履歴を省略しない（差分検出のために必要）
+          fetch-depth: 0
+
+      - id: diff
+        name: Detect changes
+        shell: bash
+        run: | # shell
+          # 安全のため未定義変数の参照やコマンド失敗で中断
+          set -euo pipefail
+
+          # ------ イベント種類によって差分の取り方が違うので分岐 ------
+          # PR: base.sha -> head.sha
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+
+          # Push: before -> after
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+
+          # その他のイベント（手動実行など）は差分検出しない
+          else
+            echo "prod_web_changed=false" >> "$GITHUB_OUTPUT"
+            echo "workflow_or_dependency_changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # 変更ファイル一覧を取得（差分がなくても落とさないために || true）
+          # ※初回pushや履歴書き換えは差分が取れないことがあるため注意
+          if ! CHANGED="$(git diff --name-only "$BASE" "$HEAD")"; then
+            echo "WARN: git diff failed for BASE=$BASE HEAD=$HEAD; treating as no changes" >&2
+            CHANGED=""
+          fi
+          printf '%s\n' "$CHANGED"
+
+          # このワークフローに変更があるかチェック
+          WORKFLOW_FILE=".github/workflows/apps-web-pr-ci.yml"
+          if printf '%s\n' "$CHANGED" | grep -Fxq \
+              -e 'package.json' \
+              -e 'pnpm-lock.yaml' \
+              -e 'pnpm-workspace.yaml' \
+              -e '.github/workflows/apps-web-pr-ci.yml' \
+              -e '.github/workflows/lint-and-test.yml'
+          then
+            echo "workflow_or_dependency_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "workflow_or_dependency_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # on.pathsの除外と整合させる（ドキュメントは除外）
+          CHANGED="$(
+            { printf '%s\n' "$CHANGED" \
+                | grep -vE '^apps/web/.*\.mdx?$'
+            } || true
+          )"
+
+          # apps/web配下に変更があればtrue
+          if printf '%s\n' "$CHANGED" | grep -qE '^apps/web/'; then
+            echo "prod_web_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prod_web_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: apps/web lint and tests
+    needs: [detect]
+    # apps/webに変更があるか、このワークフローや依存関係に変更があるときだけ実行
+    if: needs.detect.outputs.prod_web_changed == 'true' || needs.detect.outputs.workflow_or_dependency_changed == 'true'
+    uses: ./.github/workflows/lint-and-test.yml
+    with:
+      # アプリの場所
+      app_path: apps/web
+
+    # テストだけなのでread権限で十分
+    permissions:
+      # リポジトリのコードの読み取りに必要
+      contents: read

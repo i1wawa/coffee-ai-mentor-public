@@ -1,0 +1,68 @@
+<!-- .repomixignore -->
+<!--
+概要:
+- repomix の対象外パターン定義（依存・成果物・機微情報・生成物）
+
+責務:
+- リポジトリ内で混入させたくないディレクトリ/ファイルを一括で除外する
+
+非目的:
+- 実行時の挙動やセキュリティ要件を定義しない（repomix の入力制御に限定）
+
+前提:
+- repomix が .repomixignore を参照し、グロブ（glob）で除外判定する
+
+セキュリティ/機微情報:
+- env / 鍵 / 証明書などの機微ファイルは必ず除外する
+-->
+
+# dependencies
+**/node_modules
+
+# testing
+**/coverage
+**/playwright-report
+**/test-results
+
+# next.js
+**/.next/
+**/out/
+
+# production
+**/build
+
+# misc
+**/.DS_Store
+
+# debug
+*.log
+.pnpm-debug.log_
+
+# env files
+**/.env*
+!**/.env.example
+
+# secrets
+*.pem
+*.key
+*.crt
+*.cer
+
+# typescript
+*.tsbuildinfo
+**/next-env.d.ts
+
+# Prisma
+**/src/generated/prisma
+
+# Terraform
+**/.terraform
+**/terraform.tfvars
+**/*.auto.tfvars
+**/*.auto.tfvars.json
+**/*.tfstate
+**/*.tfstate.*
+*.terraform.lock.hcl
+
+# codex
+**/.codex

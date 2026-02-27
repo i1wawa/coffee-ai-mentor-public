@@ -1,0 +1,48 @@
+# .dockerignore
+# ===========================================
+# 概要:
+# - Docker イメージのビルド対象から不要なファイル/ディレクトリを除外する
+#
+# 責務:
+# - 送信量とビルド時間を減らす
+# - 依存物・生成物・秘密情報をビルド対象に含めない
+# ===========================================
+
+# VCS
+.git
+.github
+
+# dependencies
+node_modules
+**/node_modules
+
+# testing
+**/coverage
+**/playwright-report
+**/test-results
+
+# next.js
+**/.next
+**/out
+
+# misc
+.DS_Store
+.vscode
+
+# debug
+*.log
+.pnpm-debug.log*
+
+# env files
+.env*
+!.env.example
+
+# secrets
+*.pem
+*.key
+*.crt
+*.cer
+
+# Monorepo: production buildに不要なもの
+docs/
+infra/

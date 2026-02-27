@@ -1,0 +1,258 @@
+# .github/ISSUE_TEMPLATE/bug.yml
+
+name: "bug"
+description: "不具合・障害の修正"
+title: "bug: "
+labels: ["type: bug"]
+assignees: []
+
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: 概要
+      description: "どこで何が起きているか、短く明確に"
+      placeholder: "プロフィール保存時にエラーが発生し、更新できない"
+    validations:
+      required: true
+
+  - type: textarea
+    id: relations
+    attributes:
+      label: 関連
+      description: "関係するissue・PR・仕様書など"
+      placeholder: |
+        - PR
+          - #34
+      value: |
+        - ドキュメント
+          - []()
+    validations:
+      required: false
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目的
+      description: "何を解決し、どう良くなるか"
+      placeholder: |
+        - 課題：プロフィール保存時に500エラーが発生
+        - 経緯：直近の変更後から再現し、ユーザーがプロフィール更新を完了できない状態になっている
+        - 期待：プロフィールが更新される
+      value: |
+        - 課題：
+        - 経緯：
+        - 期待：
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: 受け入れ条件
+      description: |
+        - [docs/CONTRIBUTING.md「6. DoD（完了の定義）」](https://github.com/i1wawa/cococoffee/blob/main/docs/CONTRIBUTING.md#6-dod完了の定義)の他にあれば
+        - Gherkinステップ（Given 条件/When 操作/Then 結果）など
+      placeholder: |
+        - 条件：フロントで無効値を入力  
+          操作：保存ボタンを押す  
+          結果：「入力値が不正です」と表示
+      value: |
+        - 条件：  
+          操作：  
+          結果：
+    validations:
+      required: true
+
+  ###### <bugfix固有フィールド> ######
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: 再現性
+      description: "発生頻度を明確化"
+      options:
+        - 100%
+        - 約75%
+        - 約50%
+        - 不明
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: 再現手順
+      description: "番号付きで手順を明確化、実際・期待を"
+      placeholder: |
+        1. サインインする
+        2. プロフィールを編集して保存
+        - 実際：500エラーが発生
+        - 期待：保存完了メッセージが表示される
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 確認環境
+      description: "OS・ブラウザ・デバイス・バージョンなど"
+      placeholder: |
+        - OS：Windows 11
+        - ブラウザ：Chrome 129
+        - デバイス：Desktop
+        - バージョン：v1.2.3
+      value: |
+        - OS：
+        - ブラウザ：
+        - デバイス：
+        - バージョン：
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 証跡
+      description: "ログ・スクリーンショットなど"
+      render: shell
+    validations:
+      required: true
+  ###### </bugfix固有フィールド> ######
+
+  - type: textarea
+    id: risk_categories
+    attributes:
+      label: リスク種類
+      description: "種類ごとに該当有無をチェック（☐／☒）"
+      placeholder: |
+        |該当|種類|観点例|
+        |---|---|---|
+        |☐|セキュリティ|認証・セッション・権限・入出力・暗号・通信・ログ・設定・依存|
+        |☐|プライバシー・法務||
+        |☐|ライセンス||
+        |☐|パフォーマンス|レイテンシ・容量・実行時間|
+        |☐|互換性|環境・依存・DB・API・テスト|
+        |☐|費用・サステナビリティ||
+        |☐|UX・アクセシビリティ|一貫性・期待整合・認知量・操作性・デザイン性・倫理|
+        |☐|DevEx|解析容易性・変更容易性・テスト容易性・情報整合性・メトリクス・ログ・作業量|
+        |☐|該当なし||
+      value: |
+        |該当|種類|観点例|
+        |---|---|---|
+        |☐|セキュリティ|認証・セッション・権限・入出力・暗号・通信・ログ・設定・依存|
+        |☐|プライバシー・法務||
+        |☐|ライセンス||
+        |☐|パフォーマンス|レイテンシ・容量・実行時間|
+        |☐|互換性|環境・依存・DB・API・テスト|
+        |☐|費用・サステナビリティ||
+        |☐|UX・アクセシビリティ|一貫性・期待整合・認知量・操作性・デザイン性・倫理|
+        |☐|DevEx|解析容易性・変更容易性・テスト容易性・情報整合性・メトリクス・ログ・作業量|
+        |☐|該当なし||
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk_detail
+    attributes:
+      label: リスク詳細
+      description: "与え得るリスクの詳細"
+      placeholder: |
+        - セキュリティ：入力バリデーションの不備によるXSS（クロスサイトスクリプティング）の再発リスク
+        - 互換性：既存APIスキーマ変更によりクライアントが古い形式を解釈できなくなる
+    validations:
+      required: true
+
+  ###### <epic・story・bugfix・maintenance固有フィールド> ######
+  - type: dropdown
+    id: data_strategy
+    attributes:
+      label: データスキーマ移行戦略
+      description: "データスキーマ移行をどう工夫するか"
+      options:
+        - 変更なし
+        - 拡張のみ
+        - expand and contract（後方互換のため拡張のみ行い、安全確認後に不要部を削除）
+        - dual-write and backfill（新旧保存場所へ同時書き込み、旧データを補完）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: release_strategy
+    attributes:
+      label: リリース露出戦略
+      description: |
+        - どのユーザー群にどの程度公開するか
+        - 前提：フィーチャーフラグ（機能やユーザー範囲をフラグでON／OFF可能に）
+      options:
+        - 対象外（機能変更なし or 本番デプロイなし）
+        - A/Bテスト（複数バージョンを公開し、効果検証）
+        - ロールアウト（公開するユーザー集団を段階的に拡大）
+        - シャドーテスト（応答は旧バージョンで行い、新バージョンはトラフィック処理をテスト）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deploy_strategy
+    attributes:
+      label: デプロイ戦略
+      description: "どこまで慎重な更新を行うか"
+      options:
+        - 対象外（本番デプロイなし）
+        - インプレース（上書き、メンテナンス通知必須）
+        - リクリエイト（旧インスタンス停止、新インスタンス作成）
+        - ブルーグリーン（2つの本番環境を用意し、即座に旧バージョンに戻せるように）
+        - カナリア（ロードバランサーで振り分けているインスタンスの一部を更新、トラフィックを段階的に）
+        - ローリングアップデート（ロードバランサーで振り分けているインスタンスを1つずつ更新し、チェック）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: downtime
+    attributes:
+      label: ダウンタイム
+      description: "システム停止時間がどれだけ発生するか"
+      options:
+        - なし
+        - 短時間（5分未満）
+        - 長時間（5分以上）
+    validations:
+      required: true
+
+  - type: textarea
+    id: rollback_strategy
+    attributes:
+      label: ロールバック戦略
+      description: "どの層をどのように戻すか（☐／☒）"
+      placeholder: |
+        |該当|種類|内容|
+        |---|---|---|
+        |☐|設定|フィーチャーフラグ切替（機能／ユーザー／地域）|
+        |☐|設定|環境変数／Secretsを戻す|
+        |☐|設定|外部依存の設定を戻す|
+        |☐|コード|Revert PR・Commit|
+        |☐|データ|論理バックアップから復元（SQLクエリ）|
+        |☐|データ|物理バックアップから復元（DBMSバックアップ／ストレージバックアップ）|
+        |☐|データ|ロールフォワード（修復マイグレーション適用）|
+        |☐|デプロイ|旧アーティファクトへロールバック（タグ／リリース／ビルド／イメージ）|
+        |☐|インフラ|トラフィック切替（ロードバランサー）|
+      value: |
+        |該当|種類|内容|
+        |---|---|---|
+        |☐|設定|フィーチャーフラグ切替（機能／ユーザー／地域）|
+        |☐|設定|環境変数／Secretsを戻す|
+        |☐|コード|Revert PR・Commit|
+        |☐|データ|論理バックアップから復元（SQLクエリ）|
+        |☐|データ|物理バックアップから復元（DBMSバックアップ／ストレージバックアップ）|
+        |☐|データ|ロールフォワード（修復マイグレーション適用）|
+        |☐|デプロイ|旧アーティファクトへロールバック（タグ／リリース／ビルド／イメージ）|
+        |☐|インフラ|トラフィック切替（ロードバランサー）|
+    validations:
+      required: true
+  ###### </epic・story・bugfix・maintenance固有フィールド> ######
+
+  - type: markdown
+    attributes:
+      value: |
+        ※以下を満たすこと
+        - [docs/CONTRIBUTING.md「4. DoR（着手可能の定義）」](https://github.com/i1wawa/cococoffee/blob/main/docs/CONTRIBUTING.md#4-dor着手可能の定義)
+        - [docs/CONTRIBUTING.md「6. DoD（完了の定義）」](https://github.com/i1wawa/cococoffee/blob/main/docs/CONTRIBUTING.md#6-dod完了の定義)
