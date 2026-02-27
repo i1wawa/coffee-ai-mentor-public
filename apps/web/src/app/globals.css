@@ -1,0 +1,196 @@
+/* apps/web/src/app/globals.css
+ * ==========================================================================
+ * 概要:
+ * - アプリ全体のグローバルスタイルとデザイントークン定義 (shadcn/ui ベース)
+ *
+ * 責務:
+ * - Tailwind CSS と tw-animate-css を読み込む
+ * - light/dark のテーマ変数（色・radius・sidebar・chart）を提供する
+ * - ベース要素（border / outline / body など）を統一する
+ *
+ * 非目的:
+ * - コンポーネント固有の見た目は扱わない（各コンポーネント側に置く）
+ * - レイアウトやページ専用のスタイルは置かない
+ *
+ * 前提:
+ * - html に .dark を付与してダークモードを有効化する
+ * - Tailwind の @theme inline と @custom-variant が有効な設定である
+ * ==========================================================================
+ */
+
+@import "tailwindcss";
+
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+}
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.282 0.087 267.935);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.282 0.087 267.935);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.282 0.087 267.935);
+  --primary: oklch(0.677 0.203 40.381);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.981 0.009 258.335);
+  --secondary-foreground: oklch(0.282 0.087 267.935);
+  --muted: oklch(0.984 0.003 247.858);
+  --muted-foreground: oklch(0.516 0.054 272.586);
+  --accent: oklch(0.968 0.007 247.896);
+  --accent-foreground: oklch(0.282 0.087 267.935);
+  --destructive: oklch(0.69 0.2 23.91);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.919 0.013 255.508);
+  --input: oklch(0.919 0.013 255.508);
+  --ring: oklch(0.677 0.203 40.381 / 0.1);
+  --chart-1: oklch(0.677 0.203 40.381);
+  --chart-2: oklch(0.7 0.19 48);
+  --chart-3: oklch(0.77 0.2 131);
+  --chart-4: oklch(0.68 0.15 237);
+  --chart-5: oklch(0.66 0.21 354);
+  --sidebar: oklch(0.984 0.003 247.858);
+  --sidebar-foreground: oklch(0.282 0.087 267.935);
+  --sidebar-primary: oklch(0.282 0.087 267.935);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.968 0.007 247.896);
+  --sidebar-accent-foreground: oklch(0.282 0.087 267.935);
+  --sidebar-border: oklch(0.919 0.013 255.508);
+  --sidebar-ring: oklch(0.919 0.013 255.508);
+  --font-sans: Onest;
+  --shadow-2xs: 0 1px 0 0 oklch(0.554 0.041 257.417 / 0.05);
+  --shadow-xs: 0 1px 2px 0 oklch(0.554 0.041 257.417 / 0.05);
+  --shadow-sm:
+    0 1px 3px 0 oklch(0.554 0.041 257.417 / 0.1),
+    0 1px 2px -1px oklch(0.554 0.041 257.417 / 0.1);
+  --shadow-md:
+    0 4px 6px -1px oklch(0.554 0.041 257.417 / 0.1),
+    0 2px 4px -2px oklch(0.554 0.041 257.417 / 0.1);
+  --shadow-xl:
+    0 20px 25px -5px oklch(0 0 0 / 0.1),
+    0 8px 10px -6px oklch(0.554 0.041 257.417 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px oklch(0.554 0.041 257.417 / 0.15);
+  --radius: 0.5rem;
+}
+.dark {
+  --background: oklch(0.2161 0.0061 56.0434);
+  --foreground: oklch(0.9699 0.0013 106.4238);
+  --card: oklch(0.2685 0.0063 34.2976);
+  --card-foreground: oklch(0.9699 0.0013 106.4238);
+  --popover: oklch(0.2685 0.0063 34.2976);
+  --popover-foreground: oklch(0.9699 0.0013 106.4238);
+  --primary: oklch(0.7049 0.1867 47.6044);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.4444 0.0096 73.639);
+  --secondary-foreground: oklch(0.9232 0.0026 48.7171);
+  --muted: oklch(0.233 0.0073 67.4563);
+  --muted-foreground: oklch(0.7161 0.0091 56.259);
+  --accent: oklch(0.3598 0.0497 229.3202);
+  --accent-foreground: oklch(0.9232 0.0026 48.7171);
+  --destructive: oklch(0.5771 0.2152 27.325);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.3741 0.0087 67.5582);
+  --input: oklch(0.3741 0.0087 67.5582);
+  --ring: oklch(0.7049 0.1867 47.6044);
+  --chart-1: oklch(0.7049 0.1867 47.6044);
+  --chart-2: oklch(0.6847 0.1479 237.3225);
+  --chart-3: oklch(0.7952 0.1617 86.0468);
+  --chart-4: oklch(0.7161 0.0091 56.259);
+  --chart-5: oklch(0.5534 0.0116 58.0708);
+  --sidebar: oklch(0.2685 0.0063 34.2976);
+  --sidebar-foreground: oklch(0.9699 0.0013 106.4238);
+  --sidebar-primary: oklch(0.7049 0.1867 47.6044);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.6847 0.1479 237.3225);
+  --sidebar-accent-foreground: oklch(0.2839 0.0734 254.5378);
+  --sidebar-border: oklch(0.3741 0.0087 67.5582);
+  --sidebar-ring: oklch(0.7049 0.1867 47.6044);
+  --shadow-x: 0px;
+  --shadow-y: 2px;
+  --shadow-blur: 3px;
+  --shadow-spread: 0px;
+  --shadow-opacity: 0.18;
+  --shadow-color: hsl(0 0% 5%);
+  --shadow-2xs: 0px 2px 3px 0px hsl(0 0% 5% / 0.09);
+  --shadow-xs: 0px 2px 3px 0px hsl(0 0% 5% / 0.09);
+  --shadow-sm:
+    0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md:
+    0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg:
+    0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl:
+    0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-2xl: 0 1px 3px 0 hsl(0 0% 0% / 0.25);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    /*
+      スクロールバーがない時でも、将来出る分のガター（余白）を予約する
+      - ページごとの縦スクロール有無でレイアウト幅が変わると、ヘッダーの中央寄せ要素が横にズレて見える
+      - DropdownMenu などのオーバーレイ開閉時も横ズレを起こしにくくする
+    */
+    scrollbar-gutter: stable;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}

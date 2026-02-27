@@ -1,0 +1,479 @@
+# .github/workflows/nextjs-to-cloudrun-deploy.yml
+# ======================================================================
+# 概要:
+# - 再利用かつ手動実行可能な Next.js アプリの Cloud Run デプロイワークフロー
+#
+# 契約:
+# - 実行条件: main ブランチのみ
+# - Next.js を Docker ビルドし、Artifact Registry へ push
+# - Cloud Run に --no-traffic + tag=canary でデプロイし、タグ URL でヘルスチェック
+# - ヘルスチェック成功時のみ、検証済みリビジョンへ 100% トラフィック切替
+# - feature flags 適用のフックを用意（未実装）
+#
+# 前提:
+# - GitHub Environments の prod を使用する
+# - GCP 側に Cloud Run / Artifact Registry / WIF（Workload Identity Federation）設定済み
+#
+# 観測:
+# - 追跡用に image（short SHA）と tag URL / revision を出力する（機微情報は含めない）
+# ======================================================================
+
+name: "Reusable: Deploy to Cloud Run (Next.js)"
+
+on:
+  # 他ワークフローから呼び出される前提（reusable workflow）
+  workflow_call:
+    inputs:
+      # Next.jsアプリのパス
+      app_path:
+        description: Next.js app path
+        required: true
+        type: string
+
+      # アプリパッケージ名（コンテナイメージタグ用）
+      artifact_package:
+        description: Artifact Registry image name
+        required: true
+        type: string
+
+      # ヘルスチェックのパス
+      healthcheck_path:
+        description: Healthcheck path
+        required: false
+        default: "/"
+        type: string
+
+  # 手動トリガーも可能にする
+  workflow_dispatch:
+    inputs:
+      app_path:
+        description: Next.js app path
+        required: true
+        type: string
+      artifact_package:
+        description: Artifact Registry image name
+        required: true
+        type: string
+      healthcheck_path:
+        description: Healthcheck path
+        required: false
+        default: "/"
+        type: string
+
+# bash --noprofile --norc -eo pipefail {0}
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy:
+    # mainブランチへのpushまたは手動実行でのみ動作
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call')
+    name: Build & Deploy to Cloud Run (public, tag healthcheck)
+    # prodのGitHub Environment variablesを利用するため
+    # - パブリックリポジトリや有料プランなら、ここに承認ゲートを設けても良い（GitHub EnvironmentsでRequired reviewersを設定）
+    environment: prod
+
+    # Ubuntu-24.04で実行
+    runs-on: ubuntu-24.04
+
+    # 30分でタイムアウト
+    timeout-minutes: 30
+
+    # 最小権限（checkout + OIDC）
+    permissions:
+      # リポジトリのコードの読み取りに必要
+      contents: read
+      # Google CloudのWIF（Workload Identity Federation）でOIDCトークンを発行するために必要
+      id-token: write
+
+    env:
+      # ------ 呼び出し元ワークフローから取得する値群 ------
+      # Next.jsアプリのパス
+      APP_PATH: ${{ inputs.app_path }}
+      # アプリパッケージ名
+      ARTIFACT_PACKAGE: ${{ inputs.artifact_package }}
+      # ヘルスチェックのパス
+      HEALTHCHECK_PATH: ${{ inputs.healthcheck_path }}
+
+      # ------ GitHub Environment variablesから取得する値群 ------
+      # Google Cloud: Artifact Registryリポジトリ名
+      # - このワークフロー上のコンテナイメージ名作成用
+      GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
+      # Google Cloud: Cloud Runサービス名
+      # - このワークフロー上のGoogle Cloud CLI用
+      GCP_CLOUD_RUN_SERVICE: ${{ vars.GCP_CLOUD_RUN_SERVICE }}
+      # Google Cloud: Secret ManagerのDATABASE_URLのsecret_id
+      # - このワークフロー上のDBマイグレーション用
+      GCP_DATABASE_URL_SECRET_ID: ${{ vars.GCP_DATABASE_URL_SECRET_ID }}
+      # Google Cloud: プロジェクトID
+      # - アプリのオブザーバビリティ・Firebase Authentication設定用
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID  }}
+      # Google Cloud: Cloud Runリージョン
+      # - このワークフロー上のGoogle Cloud CLI用
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      # Google Cloud: デプロイ権限を持つサービスアカウントのメールアドレス
+      # - このワークフロー上のGoogle Cloud CLI用
+      GCP_WEB_GHA_DEPLOYER_SERVICE_ACCOUNT_EMAIL: ${{ vars.GCP_WEB_GHA_DEPLOYER_SERVICE_ACCOUNT_EMAIL }}
+      # Google Cloud: OIDC（Workload Identity Provider）用のプロバイダリソース名
+      # - このワークフロー上のGoogle Cloud CLI用
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      # Next.js: 実行環境名
+      # - アプリのオブザーバビリティ用
+      NEXT_PUBLIC_APP_ENV: ${{ vars.NEXT_PUBLIC_APP_ENV }}
+      # 問い合わせフォームURL
+      # - 利用規約・プライバシーポリシーページの問い合わせ導線用
+      NEXT_PUBLIC_CONTACT_FORM_URL: ${{ vars.NEXT_PUBLIC_CONTACT_FORM_URL }}
+      # Firebase Authentication: APIキー
+      # - アプリのFirebase Authentication設定用
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
+      # Firebase Authentication: アプリID
+      # - アプリのFirebase Authentication設定用
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
+      # Firebase Authentication: 認証ドメイン
+      # - アプリのFirebase Authentication設定用
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+      # Firebase Authentication: プロジェクトID
+      # - アプリのFirebase Authentication設定用
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+      # Sentry: DSN（Data Source Name）
+      # - アプリのオブザーバビリティ用
+      NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+      # Sentry: 実行環境名
+      # - アプリのオブザーバビリティ用
+      NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ vars.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
+      # サービス名
+      # - アプリのオブザーバビリティ用（ログのトレースID取得用）
+      SERVICE_NAME: ${{ vars.SERVICE_NAME }}
+
+      # ------ カスタムした値群 ------
+      # 新リビジョンにのみタグ付与（マージ時は「canary」、PRは「pr-番号」）
+      CANARY_TAG: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'canary' }}
+
+    steps:
+      # 作業ランナー（仮想マシン）にリポジトリをクローン
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # GCPにOIDCで認証（鍵を置かない）
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_WEB_GHA_DEPLOYER_SERVICE_ACCOUNT_EMAIL }}
+
+      # gcloud CLIをセットアップ
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      # pnpmをインストール（バージョンはpackage.jsonに依存）
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      # ------ ※DB準備後コメント解除予定 ------
+
+      # # Nodeをインストール + pnpmキャッシュを有効化（毎回migration実行のため）
+      # - name: Setup Node.js
+      #   uses: actions/setup-node@v6
+      #   with:
+      #     node-version: ${{ inputs.node_version }}
+      #     cache: pnpm
+
+      # # ロックファイルに基づいて依存関係をインストール（Prisma実行に必要）
+      # - name: Install dependencies
+      #   run: pnpm install --frozen-lockfile
+
+      # # Prisma migrations（毎回実行）
+      # - name: Run Prisma migrations (always)
+      #   # PRの場合はスキップ
+      #   if: github.event_name != 'pull_request'
+      #   working-directory: ${{ env.APP_PATH }}
+      #   env:
+      #     DATABASE_URL: ${{ steps.secret.outputs.database_url }}
+      #   run: | # shell
+      #     # 安全のため未定義変数の参照やコマンド失敗で中断
+      #     set -euo pipefail
+
+      #     # DATABASE_URLを環境変数にセット
+      #     DATABASE_URL="$(
+      #       gcloud secrets versions access latest \
+      #         --project "${GCP_PROJECT_ID}" \
+      #         --secret "${GCP_DATABASE_URL_SECRET_ID}"
+      #     )"
+
+      #     # DATABASE_URLが空なら安全のため中断
+      #     if [ -z "${DATABASE_URL}" ]; then
+      #       echo "DATABASE_URLが未設定です。安全のため失敗させます。"
+      #       exit 1
+      #     fi
+
+      #     echo "Prisma migrate deploy を実行します（毎回）..."
+      #     # 環境変数に DATABASE_URL をセット
+      #     export DATABASE_URL
+      #     pnpm prisma migrate deploy
+      #     # 念のため環境変数をクリア
+      #     unset DATABASE_URL
+
+      # ------ ※DB準備後コメント解除予定ここまで ------
+
+      # Artifact RegistryへpushするためにDocker認証
+      - name: Docker auth for Artifact Registry
+        run: | # shell
+          # 安全のため未定義変数の参照やコマンド失敗で中断
+          set -euo pipefail
+
+          # 対話プロンプトを避ける（--quiet）
+          gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      # イメージ名（短縮SHA）を決定して追跡しやすくする
+      - name: Set image name
+        id: vars
+        run: | # shell
+          # 安全のため未定義変数の参照やコマンド失敗で中断
+          set -euo pipefail
+
+          REGISTRY_HOST="${GCP_REGION}-docker.pkg.dev"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          IMAGE="${REGISTRY_HOST}/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REGISTRY_REPOSITORY}/${ARTIFACT_PACKAGE}:${SHORT_SHA}"
+
+          # steps.vars.outputs.imageとして使えるように
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          # steps.vars.outputs.short_shaとして使えるように
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+          echo "Image: ${IMAGE}"
+
+      # Docker Buildxのセットアップ（Dockerイメージのビルドの高速化・キャッシュ）
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Docker Build & Push（GHAキャッシュ）
+      - name: Build & Push image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ env.APP_PATH }}/Dockerfile
+          target: runner
+          push: true
+          tags: ${{ steps.vars.outputs.image }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # ※build-args内はコメント行を入れられない
+          #
+          # Client Variables
+          # - NEXT_PUBLIC_APP_ENV: アプリのオブザーバビリティ用
+          # - NEXT_PUBLIC_CONTACT_FORM_URL: 利用規約・プライバシーポリシーページの問い合わせ導線用
+          # - NEXT_PUBLIC_FIREBASE_API_KEY: アプリのFirebase Authentication設定用
+          # - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: アプリのFirebase Authentication設定用
+          # - NEXT_PUBLIC_FIREBASE_PROJECT_ID: アプリのFirebase Authentication設定用
+          # - NEXT_PUBLIC_FIREBASE_APP_ID: アプリのFirebase Authentication設定用
+          # - NEXT_PUBLIC_SENTRY_DSN: アプリのオブザーバビリティ用
+          # - NEXT_PUBLIC_SENTRY_ENVIRONMENT: アプリのオブザーバビリティ用
+          # - NEXT_PUBLIC_SENTRY_RELEASE: アプリのオブザーバビリティ用
+          #
+          # Server Variables（build 時に参照される non-secret）
+          # - APP_ENV: アプリのオブザーバビリティ用 (NEXT_PUBLIC_APP_ENV と同値)
+          # - GCP_PROJECT_ID: アプリのオブザーバビリティ・Firebase Authentication設定用
+          # - SENTRY_DSN: アプリのオブザーバビリティ用 (NEXT_PUBLIC_SENTRY_DSN と同値)
+          # - SENTRY_ENVIRONMENT: アプリのオブザーバビリティ用 (NEXT_PUBLIC_SENTRY_ENVIRONMENT と同値)
+          # - SENTRY_RELEASE: アプリのオブザーバビリティ用 (NEXT_PUBLIC_SENTRY_RELEASE と同値)
+          # - SERVICE_NAME: アプリのオブザーバビリティ用（ログのトレースID取得用）
+          build-args: | # shell
+            NEXT_PUBLIC_APP_ENV=${{ env.NEXT_PUBLIC_APP_ENV }}
+            NEXT_PUBLIC_CONTACT_FORM_URL=${{ env.NEXT_PUBLIC_CONTACT_FORM_URL }}
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ env.NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ env.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ env.NEXT_PUBLIC_FIREBASE_APP_ID }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ env.NEXT_PUBLIC_SENTRY_DSN }}
+            NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ env.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
+            NEXT_PUBLIC_SENTRY_RELEASE=web-${{ github.run_id }}
+            APP_ENV=${{ env.NEXT_PUBLIC_APP_ENV }}
+            GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID  }}
+            SENTRY_DSN=${{ env.NEXT_PUBLIC_SENTRY_DSN }}
+            SENTRY_ENVIRONMENT=${{ env.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
+            SENTRY_RELEASE=web-${{ github.run_id }}
+            SERVICE_NAME=${{ env.SERVICE_NAME }}
+
+      # Cloud Runにトラフィック無しで公開デプロイし、固定タグを付与
+      - name: Deploy to Cloud Run with tag (no traffic, public)
+        id: deploy
+        env:
+          IMAGE: ${{ steps.vars.outputs.image }}
+        run: | # shell
+          # 安全のため未定義変数の参照やコマンド失敗で中断
+          set -euo pipefail
+
+          echo "Deploying image=${IMAGE}"
+          echo "Service=${GCP_CLOUD_RUN_SERVICE}, Region=${GCP_REGION}, Tag=${CANARY_TAG}"
+
+          # トラフィックなしでデプロイ（--no-traffic）
+          # - 対話プロンプトを避ける（--quiet）
+          gcloud run deploy "${GCP_CLOUD_RUN_SERVICE}" \
+            --image "${IMAGE}" \
+            --region "${GCP_REGION}" \
+            --platform managed \
+            --no-traffic \
+            --tag "${CANARY_TAG}" \
+            --quiet
+
+          # ---- タグ情報の反映遅延を考慮してリトライ ----
+          TAG_URL=""
+          TAG_REVISION=""
+
+          for i in {1..10}; do
+            echo "Fetching tag info (try ${i}/10)..."
+
+            # 検証用としてタグURL（CANARY_TAGリビジョンだけに到達するURL）を取得
+            TAG_URL=$(
+              gcloud run services describe "${GCP_CLOUD_RUN_SERVICE}" \
+                --region "${GCP_REGION}" \
+                --flatten="status.traffic[]" \
+                --format="value(status.traffic.tag,status.traffic.url)" --quiet \
+              | tr -d '\r' \
+              | awk -F $'\t' -v tag="${CANARY_TAG}" '$1==tag { print $2; exit }'
+            ) || true
+
+            # タグに紐づくリビジョン名（検証したものへ切替を保証）
+            TAG_REVISION=$(
+              gcloud run services describe "${GCP_CLOUD_RUN_SERVICE}" \
+                --region "${GCP_REGION}" \
+                --flatten="status.traffic[]" \
+                --format="value(status.traffic.tag,status.traffic.revisionName)" --quiet \
+              | tr -d '\r' \
+              | awk -F $'\t' -v tag="${CANARY_TAG}" '$1==tag { print $2; exit }'
+            ) || true
+
+            if [ -n "${TAG_URL}" ] && [ -n "${TAG_REVISION}" ]; then
+              echo "Tag info found."
+              break
+            fi
+
+            echo "Tag info not visible yet. Sleeping 2 seconds..."
+            sleep 2
+          done
+
+          # タグURLが取得できなければ失敗
+          if [ -z "${TAG_URL}" ]; then
+            echo "タグURLの取得に失敗しました。tag=${CANARY_TAG}"
+            # デバッグ: status.trafficを全部見る
+            gcloud run services describe "${GCP_CLOUD_RUN_SERVICE}" \
+              --region "${GCP_REGION}" \
+              --format="yaml(status.traffic)" --quiet
+            exit 1
+          fi
+
+          # リビジョン名が取得できなければ失敗
+          if [ -z "${TAG_REVISION}" ]; then
+            echo "タグに紐づくリビジョン名の取得に失敗しました。tag=${CANARY_TAG}"
+            # デバッグ: status.trafficを全部見る
+            gcloud run services describe "${GCP_CLOUD_RUN_SERVICE}" \
+              --region "${GCP_REGION}" \
+              --format="yaml(status.traffic)" --quiet
+            exit 1
+          fi
+
+          # steps.deploy.outputs.tag_urlとして使えるように
+          echo "tag_url=${TAG_URL}" >> "$GITHUB_OUTPUT"
+          echo "tag_revision=${TAG_REVISION}" >> "$GITHUB_OUTPUT"
+
+          echo "Tag URL: ${TAG_URL}"
+          echo "Tag Revision: ${TAG_REVISION}"
+
+      # タグURLに対してヘルスチェック（検証対象の取り違え防止）
+      - name: Health check tagged revision (public, canary only)
+        env:
+          TAG_URL: ${{ steps.deploy.outputs.tag_url }}
+        run: | # shell
+          # 安全のため未定義変数の参照やコマンド失敗で中断
+          set -euo pipefail
+
+          # TAG_URL末尾の"/"を除去（"//"防止）
+          BASE="${TAG_URL%/}"
+
+          # healthcheck_pathが空なら"/"にする
+          HEALTHCHECK_PATH_RAW="${HEALTHCHECK_PATH}"
+          if [ -z "${HEALTHCHECK_PATH_RAW}" ]; then
+            HEALTHCHECK_PATH_RAW="/"
+          fi
+
+          # HEALTHCHECK_PATH_RAWの先頭に"/"が無ければ追加
+          if [[ "${HEALTHCHECK_PATH_RAW}" != /* ]]; then
+            HEALTHCHECK_PATH_NORMALIZED="/${HEALTHCHECK_PATH_RAW}"
+          else
+            HEALTHCHECK_PATH_NORMALIZED="${HEALTHCHECK_PATH_RAW}"
+          fi
+
+          TARGET_URL="${BASE}${HEALTHCHECK_PATH_NORMALIZED}"
+          echo "Healthchecking (tagged revision only): ${TARGET_URL}"
+
+          # 起動直後の揺れを考慮して10回リトライ
+          SUCCESS=0
+          for i in {1..10}; do
+            echo "Try ${i}..."
+
+            # 5秒でタイムアウト、全体で20秒かかったら失敗扱いを、レスポンス本文を破棄
+            # ※失敗時にステータスコードだけ取れるように
+            HTTP_CODE=$(
+              curl -sS -L -o /dev/null -w "%{http_code}" \
+                --connect-timeout 5 --max-time 10 \
+                "${TARGET_URL}" || true
+            )
+
+            # 2xx/3xx を成功扱い（リダイレクト追従）
+            if [[ "${HTTP_CODE}" =~ ^2[0-9]{2}$ || "${HTTP_CODE}" =~ ^3[0-9]{2}$ ]]; then
+              echo "Healthcheck succeeded. (http=${HTTP_CODE})"
+              SUCCESS=1
+              break
+            fi
+
+            echo "Healthcheck failed. Waiting 20 seconds..."
+            sleep 20
+          done
+
+          # 失敗したらトラフィックは切り替えない
+          if [ "${SUCCESS}" -ne 1 ]; then
+            echo "Healthcheck failed. Traffic will NOT be shifted."
+            exit 1
+          fi
+
+      # 検証済みリビジョンへ100%トラフィック切替
+      - name: Shift traffic to verified revision (tagged)
+        # PRの場合はスキップ
+        if: github.event_name != 'pull_request'
+        env:
+          TAG_REVISION: ${{ steps.deploy.outputs.tag_revision }}
+        run: | # shell
+          # 安全のため未定義変数の参照やコマンド失敗で中断
+          set -euo pipefail
+
+          # TAG_REVISIONが空なら中断
+          if [ -z "${TAG_REVISION}" ]; then
+            echo "TAG_REVISION が空です。安全のため中断します。"
+            exit 1
+          fi
+
+          echo "Shifting 100% traffic to verified revision: ${TAG_REVISION}"
+
+          # トラフィックを100%に切替
+          # - 対話プロンプトを避ける（--quiet）
+          gcloud run services update-traffic "${GCP_CLOUD_RUN_SERVICE}" \
+            --region "${GCP_REGION}" \
+            --to-revisions "${TAG_REVISION}=100" \
+            --quiet
+
+      # feature flagsのフックポイント（無ければ静かにスキップ）
+      - name: Feature flags hook (optional, TODO)
+        run: | # shell
+          # 安全のため未定義変数の参照やコマンド失敗で中断
+          set -euo pipefail
+
+          if [ -f config/feature-flags.yaml ]; then
+            echo "config/feature-flags.yaml found. (TODO: apply to your flag store)"
+          else
+            echo "config/feature-flags.yaml not found. Skipping."
+          fi

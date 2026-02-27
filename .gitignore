@@ -1,0 +1,42 @@
+# .gitignore
+# ===========================================
+# 概要:
+# - モノレポ全体向けの Git 無視設定
+#
+# 責務:
+# - 生成物・キャッシュ・ローカル依存物をコミット対象から除外する
+# - 機微情報（鍵/証明書/環境変数）をリポジトリに入れない
+# ===========================================
+
+# dependencies
+**/node_modules
+
+# misc
+.DS_Store
+.codex
+.serena
+
+# env files
+.env*
+!.env.example
+
+# secrets
+**/certificates
+*.pem
+*.key
+*.crt
+*.cer
+
+# Terraform
+**/.terraform
+*.tfvars
+*.tfvars.json
+*.tfstate
+*.tfstate.*
+# GitHub ActionsのTerraform実行時に読み込むためリポジトリ内に置く
+!**/prod.auto.tfvars
+!**/stg.auto.tfvars
+!**/dev.auto.tfvars
+
+# reopomix
+**/repomix*

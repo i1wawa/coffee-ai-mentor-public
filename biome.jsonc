@@ -1,0 +1,92 @@
+// biome.jsonc
+// ===========================================
+// 概要:
+// - Biome の設定（フォーマット / lint / import 整理 / VCS 連携）
+//
+// 契約:
+// - $schema は pnpm-workspace.yaml で Biome 2.3.14 に固定（エディタ補完・検証用）
+// - 対象は原則全ファイル、node_modules / .next / dist / build は除外
+// - 推奨ルール + Next.js/React 推奨を適用
+//
+// 前提:
+// - VCS は Git を使用し、.gitignore を無視設定として利用する
+// - Tailwind CSS の @tailwind などは noUnknownAtRules を off にして許可する
+// ===========================================
+
+{
+  // Biome が使用する設定スキーマのURL
+  // エディタ補完やバリデーションのために指定
+  "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
+
+  "css": {
+    "parser": {
+      // CSS の @tailwind など、未定義 @ルール警告を無効化
+      // Tailwind CSS 利用時によく必要になる設定
+      "tailwindDirectives": true
+    }
+  },
+
+  "vcs": {
+    // バージョン管理システム（VCS）連携を有効化
+    "enabled": true,
+    // 使用するVCSの種類（ここでは Git）
+    "clientKind": "git",
+    // .gitignore を無視設定として利用するかどうか
+    "useIgnoreFile": true
+  },
+
+  "files": {
+    // Biome が知らない拡張子のファイルは無視する
+    "ignoreUnknown": true,
+
+    // 対象とするファイル・除外するファイルの指定
+    // "**" ですべて含めつつ、! で不要なディレクトリを除外
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!!**/.next",
+      "!!**/dist",
+      "!!**/build"
+    ]
+  },
+
+  "formatter": {
+    // フォーマッタ機能を有効化
+    "enabled": true,
+    // インデントにスペースを使用
+    "indentStyle": "space",
+    // インデント幅を2スペースに設定
+    "indentWidth": 2
+  },
+
+  "linter": {
+    // Linter 機能を有効化
+    "enabled": true,
+
+    "rules": {
+      // Biome 推奨ルールセットを有効化
+      "recommended": true,
+      "suspicious": {
+        // CSS の @tailwind など、未定義 @ルール警告を無効化
+        // Tailwind CSS 利用時によく必要になる設定
+        "noUnknownAtRules": "off"
+      }
+    },
+
+    "domains": {
+      // Next.js 向けの推奨ルールを適用
+      "next": "recommended",
+      // React 向けの推奨ルールを適用
+      "react": "recommended"
+    }
+  },
+
+  "assist": {
+    "actions": {
+      "source": {
+        // ファイル保存時などに import 文を自動整理
+        "organizeImports": "on"
+      }
+    }
+  }
+}
