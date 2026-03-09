@@ -4,7 +4,7 @@
 // - Biome の設定（フォーマット / lint / import 整理 / VCS 連携）
 //
 // 契約:
-// - $schema は pnpm-workspace.yaml で Biome 2.3.14 に固定（エディタ補完・検証用）
+// - $schema は pnpm-workspace.yaml で Biome 2.4.5 に固定（エディタ補完・検証用）
 // - 対象は原則全ファイル、node_modules / .next / dist / build は除外
 // - 推奨ルール + Next.js/React 推奨を適用
 //
@@ -16,7 +16,7 @@
 {
   // Biome が使用する設定スキーマのURL
   // エディタ補完やバリデーションのために指定
-  "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
 
   "css": {
     "parser": {

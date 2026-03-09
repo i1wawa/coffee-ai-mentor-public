@@ -12,9 +12,8 @@
 ## このプロジェクトについて
 
 <p>
-  <img src="./docs/assets/demo-marketing.png" alt="マーケティング画面" width="32%">
-  <img src="./docs/assets/demo-app-home.png" alt="アプリホーム画面" width="32%">
-  <img src="./docs/assets/demo-settings.png" alt="設定画面" width="32%">
+  <img src="./docs/assets/demo-app-home.png" alt="アプリホーム画面" width="49%">
+  <img src="./docs/assets/demo-settings.png" alt="設定画面" width="49%">
 </p>
 
 AIメンター付きコーヒーノートアプリのポートフォリオです。
@@ -26,7 +25,8 @@ AIメンター付きコーヒーノートアプリのポートフォリオです
 - [デモページ](https://coffee-ai-mentor-web-jvncegdyqq-an.a.run.app/)
 - [デモ動画](https://drive.google.com/file/d/1Gpg-AIr98bRuLFxs7UwbgXTrBDh_sm7Y/view?usp=sharing)
 
-※DB・LLMなどのアプリ本体は未実装です（段階的に追加予定）
+※現在は主にアカウント機能を中心に実装済みで、  
+インフラ基盤および運用基盤を含めて本番環境へデプロイ済みです。
 
 ## このリポジトリの目的
 
@@ -35,7 +35,6 @@ AIメンター付きコーヒーノートアプリのポートフォリオです
 - フルスタック開発
 - セキュリティ設計
 - オブザーバビリティ設計
-- 自動テスト
 - CI/CD
 - IaC（Infrastructure as Code）
 - DaC（Docs as Code / Diagram as Code）
@@ -43,7 +42,7 @@ AIメンター付きコーヒーノートアプリのポートフォリオです
 を、ドキュメントと実装をセットで統合的に示すことを目的にしています。
 
 ※開発にはCodexや複数のMCPサーバを活用しています。  
-  最終的な仕様判断・レビュー・手直し・マージは人力で行っています。
+最終的な仕様判断・レビュー・手直し・マージは人力で行っています。
 
 ## ローカル再現
 
@@ -70,11 +69,13 @@ AIメンター付きコーヒーノートアプリのポートフォリオです
   - CSRF 対策（Fetch Metadata + Origin/Referer 検証）
   - 認証 API の入力検証（JSON制限、サイズ制限、Zod バリデーション）
   - 無効 / 異常 cookie の早期排除
+  - CSP（nonce ベース）の適用
   - 秘密情報管理の責務分離方針（CI/CD と Cloud Run 側の管理方針を分離）
 
 - オブザーバビリティ設計  
   （詳細は[横断的関心事](./docs/architecture/cross-cutting-concerns.md)を参照）
   - Cloud Logging の構造化ログ（リクエスト単位）
+  - CSP違反レポート
   - Sentry によるエラー監視
   - Sentry Uptime による死活監視（`/api/health/live`）
 
@@ -91,6 +92,7 @@ AIメンター付きコーヒーノートアプリのポートフォリオです
   - CSRF 対策（Fetch Metadata + Origin/Referer 検証）
   - 認証 API の入力検証（JSON制限、サイズ制限、Zodバリデーション）
   - 無効/異常 cookie の早期排除
+  - CSP（nonce ベース）の適用
 
 - セッション・アカウント管理機能
   - サインイン
@@ -106,23 +108,24 @@ AIメンター付きコーヒーノートアプリのポートフォリオです
 - オブザーバビリティ
   - Sentry によるエラー監視
   - Sentry Uptime による死活監視（`/api/health/live`）
-  - Cloud Logging の `request.summary` 構造化ログ
+  - リクエスト単位の構造化ログ
+  - CSP違反レポートの構造化ログ
 
 - テスト基盤
   - Vitest によるユニットテスト / 統合テスト
   - Playwright による E2E テスト（認証フロー）
-  - Firebase Authentication Emulator を使った認証系テストの再現
+  - Firebase Authentication Emulator を使った認証系テスト
 
 - 開発・配信基盤
   - Docker イメージ化（コンテナ実行 / デプロイ用）
   - GitHub Actions によるデプロイ基盤
-  - Terraform によるインフラ管理（Cloud Run / Firebase Auth / Sentry など）
+  - Terraform によるインフラ管理（Cloud Run / Firebase Authentication / Sentry など）
 
 ## 今後の実装予定
 
 - コーヒー記録機能（DB）
 - AIメンター対話機能（LLM）
-- アプリ側の本格レート制限（Redis）
+- アプリ側のレート制限（Redis）
 - 既知攻撃パターン対策（WAF）
 - Readiness ヘルスチェック（`/api/health/ready`）
 
@@ -154,6 +157,8 @@ AIメンター付きコーヒーノートアプリのポートフォリオです
   - [ユーザー情報（自分）](./contracts/src/users/users-me.http.md)
     - `GET /api/users/me` : 自分情報取得
     - `DELETE /api/users/me` : アカウント削除
+  - [CSP違反レポート受信](./contracts/src/security/csp-report.http.md)
+    - `POST /api/security/csp-report` : report-uri / report-to 形式の受信（常に 204）
 
 - ADR（設計判断記録）
   - [ADR 0001: 認証セッションに Route Handlers を採用](./docs/adrs/0001-use-route-handlers-for-auth-session.md)
@@ -161,6 +166,10 @@ AIメンター付きコーヒーノートアプリのポートフォリオです
   - [ADR 0003: Firebase session cookie 交換方式を採用](./docs/adrs/0003-adopt-firebase-session-cookie-exchange-for-web-session-management.md)
   - [ADR 0004: CI/CD と Cloud Run の秘密情報管理方針を採用](./docs/adrs/0004-adopt-hybrid-secret-management-for-ci-cd-and-cloud-run.md)
   - [ADR 0005: リクエスト単位のログの Cloud Logging 制御方針を採用](./docs/adrs/0005-adopt-cloud-logging-controls-for-request-summary-volume.md)
+  - [ADR 0006: 画面別 CSP プロファイル方針を採用](./docs/adrs/0006-adopt-route-specific-csp-profiles-for-web-pages-and-firebase-popup-authentication.md)
+  - [ADR 0007: フルスタック Next.js のホスティング先に Google Cloud Run を採用](./docs/adrs/0007-adopt-google-cloud-run-for-full-stack-nextjs-hosting.md)
+  - [ADR 0008: プライマリ Postgres に Neon を採用し、認証責務を分離](./docs/adrs/0008-adopt-neon-for-primary-postgres-database.md)
+  - [ADR 0009: Web 認証に Firebase Authentication を採用](./docs/adrs/0009-adopt-firebase-authentication-for-web-auth.md)
 
 - 機能詳細 / 実装メモ
   - [認証エラーコードマッピング（Firebase Auth）](./docs/feature/firebase-auth-error-code-mapping.md)

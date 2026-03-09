@@ -33,7 +33,7 @@ export const TEST_HEALTH_URL = `${TEST_BASE_URL}/api/health/live`;
 
 /**
  * Auth Emulator のOrigin
- * - 例: https://127.0.0.1:9099
+ * - 例: http://127.0.0.1:9099
  */
 export const AUTH_EMULATOR_ORIGIN = "http://127.0.0.1:9099";
 

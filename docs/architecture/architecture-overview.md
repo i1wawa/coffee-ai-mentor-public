@@ -84,7 +84,6 @@ flowchart LR
   BE    .->|"<small>ユーザー情報の認証<br />[JSON・HTTPS]</small>" | firebase_auth
   BE    .->|"<small>ユーザー情報・コーヒー記録の保存・取得<br />[JSON・HTTPS]</small>" | neon
   FE .->|"<small>クライアント側セッション確認<br />[JSON・HTTPS]</small>" | firebase_auth
-  FE .->|"<small>簡易なデータ取得<br />[JSON・HTTPS]</small>" | neon
 
   BE    .->|"<small>AIメンター回答の生成を依頼<br />[JSON・HTTPS]</small>" | llm
 
@@ -150,7 +149,7 @@ flowchart LR
   - Vercel AI SDK
   - Gemini API
 - DB
-  - Neon（Postgres + Row Level Security）
+  - Neon（PostgreSQL）
 - 認証
   - Firebase Authentication
 - リポジトリ
@@ -169,11 +168,11 @@ flowchart LR
 - ステージング環境は、将来ユーザー数が増えた段階で追加
 
 <!-- prettier-ignore -->
-| 環境             | 開発環境                | ステージング環境 | 本番環境                                                              |
-| --------------- | ---------------------- | ------------- | -------------------------------------------------------------------- |
-| ホスティング      | 開発PC上のDockerコンテナ  |       -       | Google Cloud Runプロジェクト`coffee-ai-mentor-prod`（asia-northeast1） |
-| DB              | Supabase CLI           |       -       | Supabaseプロジェクト`coffee-ai-mentor-prod`                            |
-| 認証             | Supabase CLI           |       -       | 上記Supabase Auth                                                    |
-| LLM             | 開発用Gemini APIキー     |       -       | `GEMINI_API_KEY_PROD`を用いたGemini API呼び出し                        |
-| ログ・モニタリング | ローカルログ出力          |       -       | Sentryプロジェクト`coffee-ai-mentor-prod`・Cloud Logging               |
-| メール           | モック or ローカルログ出力 |       -       | Resendプロジェクト`coffee-ai-mentor`（prodキー）                        |
+| 環境             | 開発環境                                | ステージング環境 | 本番環境                                                              |
+| --------------- | -------------------------------------- | ------------- | -------------------------------------------------------------------- |
+| ホスティング      | 開発PC上のDockerコンテナ                  |       -       | Google Cloud Runプロジェクト`coffee-ai-mentor-prod`（asia-northeast1） |
+| DB              | 任意のPostgreSQL互換DB（例: Neon branch） |       -       | Neon（PostgreSQL）                                                   |
+| 認証             | Firebase Authentication Emulator       |       -       | Firebase Authentication                                              |
+| LLM             | 開発用Gemini APIキー                     |       -       | `GEMINI_API_KEY_PROD`を用いたGemini API呼び出し                        |
+| ログ・モニタリング | ローカルログ出力                          |       -       | Sentryプロジェクト`coffee-ai-mentor-prod`・Cloud Logging               |
+| メール           | モック or ローカルログ出力                 |       -       | Resendプロジェクト`coffee-ai-mentor`（prodキー）                        |

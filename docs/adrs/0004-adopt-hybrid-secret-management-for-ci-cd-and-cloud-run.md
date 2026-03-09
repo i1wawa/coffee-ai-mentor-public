@@ -132,4 +132,4 @@
 - .github/workflows/nextjs-to-cloudrun-deploy.yml
 - infra/environments/prod/apps/web/cloud_run.tf
 - apps/web/Dockerfile
-- apps/web/next.config.mjs
+- apps/web/next.config.ts

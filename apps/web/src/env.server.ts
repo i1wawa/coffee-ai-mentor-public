@@ -24,6 +24,10 @@ const serverBaseSchema = {
   // - オブザーバビリティ・Auth Emulator・Vitest用
   APP_ENV: z.enum(["prod", "stg", "dev"]),
 
+  // アプリのオリジンURL
+  // - CSPの設定で使用
+  APP_ORIGIN: z.url().optional().or(z.literal("")),
+
   // アプリ名（Cloud Runサービス名と同じ）
   SERVICE_NAME: z.string().min(1),
 
@@ -80,6 +84,7 @@ function createServerBaseEnv() {
     server: serverBaseSchema,
     runtimeEnv: {
       APP_ENV: process.env.APP_ENV,
+      APP_ORIGIN: process.env.APP_ORIGIN,
       SERVICE_NAME: process.env.SERVICE_NAME,
       SENTRY_RELEASE: process.env.SENTRY_RELEASE,
       FIREBASE_AUTH_EMULATOR_HOST: process.env.FIREBASE_AUTH_EMULATOR_HOST,

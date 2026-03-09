@@ -17,7 +17,7 @@
 // - 成功: 200 + ok/deleted=true + 削除 Set-Cookie
 //
 // 注意:
-// - PRECONDITION_FAILED の HTTP 契約は Route 単体テストで固定する
+// - PRECONDITION_FAILED の HTTP 契約は Route ユニットテストで固定する
 //   - 統合（Auth Emulator 経由）では安定再現しにくいため
 // - 全契約の一覧は contracts/src/users/users-me.http.md を参照する
 // ========================================================

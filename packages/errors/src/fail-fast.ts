@@ -46,7 +46,7 @@ export type FailFastInput = {
  * - 4行構造（契約・期待・観測・対処）を基本形として固定
  * - 無い項目は省略し、冗長にならないようにする
  */
-export function buildFailFastMessage(input: FailFastInput): string {
+function buildFailFastMessage(input: FailFastInput): string {
   const lines: string[] = [];
 
   // 1) 先頭行：分類＋断言

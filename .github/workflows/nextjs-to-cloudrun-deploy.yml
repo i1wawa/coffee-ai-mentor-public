@@ -121,6 +121,9 @@ jobs:
       # Next.js: 実行環境名
       # - アプリのオブザーバビリティ用
       NEXT_PUBLIC_APP_ENV: ${{ vars.NEXT_PUBLIC_APP_ENV }}
+      # アプリの公開 origin
+      # - CSP の report-to / Reporting-Endpoints がブラウザから到達できる URL を返すために使う
+      APP_ORIGIN: ${{ vars.APP_ORIGIN }}
       # 問い合わせフォームURL
       # - 利用規約・プライバシーポリシーページの問い合わせ導線用
       NEXT_PUBLIC_CONTACT_FORM_URL: ${{ vars.NEXT_PUBLIC_CONTACT_FORM_URL }}
@@ -286,6 +289,7 @@ jobs:
           #
           # Server Variables（build 時に参照される non-secret）
           # - APP_ENV: アプリのオブザーバビリティ用 (NEXT_PUBLIC_APP_ENV と同値)
+          # - APP_ORIGIN: CSP の report-to / Reporting-Endpoints で使う公開 origin
           # - GCP_PROJECT_ID: アプリのオブザーバビリティ・Firebase Authentication設定用
           # - SENTRY_DSN: アプリのオブザーバビリティ用 (NEXT_PUBLIC_SENTRY_DSN と同値)
           # - SENTRY_ENVIRONMENT: アプリのオブザーバビリティ用 (NEXT_PUBLIC_SENTRY_ENVIRONMENT と同値)
@@ -302,6 +306,7 @@ jobs:
             NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ env.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
             NEXT_PUBLIC_SENTRY_RELEASE=web-${{ github.run_id }}
             APP_ENV=${{ env.NEXT_PUBLIC_APP_ENV }}
+            APP_ORIGIN=${{ env.APP_ORIGIN }}
             GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID  }}
             SENTRY_DSN=${{ env.NEXT_PUBLIC_SENTRY_DSN }}
             SENTRY_ENVIRONMENT=${{ env.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}

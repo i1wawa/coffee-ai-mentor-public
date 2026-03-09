@@ -10,4 +10,8 @@
 // - instrumentation-client.ts は Next.js のファイル規約で自動読み込みされる
 // ============================================================================
 
+import * as Sentry from "@sentry/nextjs";
 import "../sentry.client.config";
+
+// Next.js の画面遷移トレースを有効化するフックをエクスポートする（公式推奨）
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

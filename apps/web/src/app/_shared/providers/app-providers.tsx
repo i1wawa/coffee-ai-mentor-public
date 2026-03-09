@@ -6,6 +6,7 @@
 // 責務:
 // - React Query の QueryClient を用意し、配下へ提供する
 // - ThemeProvider で children をラップする
+// - CSP nonce が渡された場合、ThemeProvider へ中継する
 // ========================================================
 
 "use client";
@@ -16,7 +17,12 @@ import { getQueryClient } from "@/app/_shared/react-query/get-query-client";
 import { AuthCrossTabSync } from "./AuthCrossTabSync";
 import { ThemeProvider } from "./theme-provider";
 
-export function AppProviders({ children }: { children: React.ReactNode }) {
+type AppProvidersProps = {
+  children: React.ReactNode;
+  nonce?: string;
+};
+
+export function AppProviders({ children, nonce }: AppProvidersProps) {
   // QueryClient を取得する
   const queryClient = getQueryClient();
 
@@ -27,7 +33,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
         attribute="class"
         defaultTheme="system"
         enableSystem
+        enableColorScheme={false}
         disableTransitionOnChange
+        nonce={nonce}
       >
         {children}
       </ThemeProvider>

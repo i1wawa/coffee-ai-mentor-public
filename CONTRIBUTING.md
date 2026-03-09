@@ -101,7 +101,7 @@
   |     | スキーマ適用                 | .guard             |
   |     | 汎用関数                    | .util              |
   |     | 環境設定                    | .config            |
-  |     | 単体テスト                  | .test              |
+  |     | ユニットテスト                  | .test              |
   |     | サービステスト               | .service.test      |
   |     | 統合テスト                  | .integration.test  |
   |     | E2Eテスト                   | .spec              |

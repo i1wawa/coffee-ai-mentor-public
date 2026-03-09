@@ -40,6 +40,8 @@ export const LOG_EVENT = {
   DEPENDENCY_CALL: "dependency.call",
   // 認証の重要イベントを追跡し、調査可能にする
   AUTH_AUDIT: "auth.audit",
+  // CSP違反レポートを追跡し、設定不備や攻撃兆候の調査起点にする
+  CSP_REPORT: "csp.report",
 } as const;
 export type LogEvent = (typeof LOG_EVENT)[keyof typeof LOG_EVENT];
 

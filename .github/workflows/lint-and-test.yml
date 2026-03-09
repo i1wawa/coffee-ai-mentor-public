@@ -85,7 +85,7 @@ jobs:
       - name: Lint (Biome)
         run: pnpm lint
 
-      # Vitestで単体テストを1回のみ実行
+      # Vitestでユニットテストを1回のみ実行
       - name: Unit tests (Vitest)
         run: pnpm test:unit:ci
 

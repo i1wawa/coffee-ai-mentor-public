@@ -1,7 +1,7 @@
 // apps/web/src/app/api/auth/session/route.server.test.ts
 // ========================================================
 // 概要:
-// - GET /api/auth/session の Route Handler 単体テスト
+// - GET /api/auth/session の Route Handler ユニットテスト
 //
 // 目的:
 // - getAuthSessionStatus が失敗（!status.ok）した分岐の契約を固定する

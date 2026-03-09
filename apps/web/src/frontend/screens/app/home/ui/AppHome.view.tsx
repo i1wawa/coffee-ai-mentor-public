@@ -25,7 +25,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
 import { Badge } from "@/frontend/shared/ui/shadcn/components/ui/badge";
 import { Button } from "@/frontend/shared/ui/shadcn/components/ui/button";
 import {
@@ -38,7 +37,7 @@ import { Separator } from "@/frontend/shared/ui/shadcn/components/ui/separator";
 
 type RecentCup = {
   id: string;
-  brewedAtIso: string;
+  brewedLabel: string;
   beanLabel: string;
   methodLabel: string;
   impression: string;
@@ -51,6 +50,41 @@ type NextExperiment = {
   hint: string;
 };
 
+const TODAY_LABEL = "3月9日 (月)";
+
+const RECENT_CUPS: RecentCup[] = [
+  {
+    id: "1",
+    brewedLabel: "3/8",
+    beanLabel: "エチオピア / ナチュラル",
+    methodLabel: "ハンドドリップ",
+    impression: "明るい酸。後味が軽い",
+    scoreLabel: "良い",
+  },
+  {
+    id: "2",
+    brewedLabel: "3/7",
+    beanLabel: "グアテマラ / ウォッシュド",
+    methodLabel: "ハンドドリップ",
+    impression: "甘みが出た。温度が下がると伸びる",
+    scoreLabel: "良い",
+  },
+  {
+    id: "3",
+    brewedLabel: "3/6",
+    beanLabel: "コロンビア / ハニー",
+    methodLabel: "ハンドドリップ",
+    impression: "少し渋い。挽き目が細かいかも",
+    scoreLabel: "ふつう",
+  },
+];
+
+const NEXT_EXPERIMENT: NextExperiment = {
+  title: "挽き目を 1段階だけ粗く",
+  detail: "渋さが出たら、まずここ。",
+  hint: "同じ豆で2回だけ試して、違いが出るか確認すると楽です。",
+};
+
 export function AppHomeView() {
   // 1) ルーティング先はここに集約しておく
   // - 後でルートが変わっても差し替えが楽
@@ -58,52 +92,9 @@ export function AppHomeView() {
   const hrefBrowseRecords = "#";
   const hrefMentor = "#";
 
-  // 2) 表示用の日付（軽量に）
-  const todayLabel = useMemo(() => {
-    const formatter = new Intl.DateTimeFormat("ja-JP", {
-      month: "long",
-      day: "numeric",
-      weekday: "short",
-    });
-    return formatter.format(new Date());
-  }, []);
-
-  // 3) ここは将来、API / React Query で差し替える想定
-  // - 現状はUIの骨格を見せるためのダミーデータ
-  const recentCups: RecentCup[] = [
-    {
-      id: "1",
-      brewedAtIso: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString(),
-      beanLabel: "エチオピア / ナチュラル",
-      methodLabel: "ハンドドリップ",
-      impression: "明るい酸。後味が軽い",
-      scoreLabel: "良い",
-    },
-    {
-      id: "2",
-      brewedAtIso: new Date(Date.now() - 1000 * 60 * 60 * 44).toISOString(),
-      beanLabel: "グアテマラ / ウォッシュド",
-      methodLabel: "ハンドドリップ",
-      impression: "甘みが出た。温度が下がると伸びる",
-      scoreLabel: "良い",
-    },
-    {
-      id: "3",
-      brewedAtIso: new Date(Date.now() - 1000 * 60 * 60 * 70).toISOString(),
-      beanLabel: "コロンビア / ハニー",
-      methodLabel: "ハンドドリップ",
-      impression: "少し渋い。挽き目が細かいかも",
-      scoreLabel: "ふつう",
-    },
-  ];
-
-  const nextExperiment: NextExperiment = {
-    title: "挽き目を 1段階だけ粗く",
-    detail: "渋さが出たら、まずここ。",
-    hint: "同じ豆で2回だけ試して、違いが出るか確認すると楽です。",
-  };
-
-  const hasAnyRecord = recentCups.length > 0;
+  // 2) ここは将来、API / React Query で差し替える想定
+  // - 現状は hydration-safe な固定ダミーデータでUI骨格を見せる
+  const hasAnyRecord = RECENT_CUPS.length > 0;
 
   return (
     <div
@@ -115,7 +106,7 @@ export function AppHomeView() {
         <div className="space-y-2">
           <div className="flex items-center pb-4 gap-4 text-sm text-muted-foreground">
             <CalendarDays className="size-4" aria-hidden="true" />
-            <span>{todayLabel}</span>
+            <span>{TODAY_LABEL}</span>
           </div>
 
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
@@ -167,7 +158,7 @@ export function AppHomeView() {
                 />
               ) : (
                 <div className="space-y-3">
-                  {recentCups.map((cup) => (
+                  {RECENT_CUPS.map((cup) => (
                     <RecentCupRow key={cup.id} cup={cup} />
                   ))}
                 </div>
@@ -219,16 +210,16 @@ export function AppHomeView() {
 
                   <div className="space-y-1">
                     <div className="text-sm font-medium">
-                      {nextExperiment.title}
+                      {NEXT_EXPERIMENT.title}
                     </div>
                     <p className="text-sm text-muted-foreground leading-relaxed">
-                      {nextExperiment.detail}
+                      {NEXT_EXPERIMENT.detail}
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-3 rounded-xl bg-muted/40 p-3 text-sm text-muted-foreground leading-relaxed">
-                  {nextExperiment.hint}
+                  {NEXT_EXPERIMENT.hint}
                 </div>
               </div>
 
@@ -274,14 +265,6 @@ export function AppHomeView() {
 }
 
 function RecentCupRow({ cup }: { cup: RecentCup }) {
-  const brewedLabel = useMemo(() => {
-    const formatter = new Intl.DateTimeFormat("ja-JP", {
-      month: "numeric",
-      day: "numeric",
-    });
-    return formatter.format(new Date(cup.brewedAtIso));
-  }, [cup.brewedAtIso]);
-
   const scoreVariant =
     cup.scoreLabel === "良い"
       ? "default"
@@ -294,7 +277,7 @@ function RecentCupRow({ cup }: { cup: RecentCup }) {
       <div className="min-w-0 space-y-1">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="rounded-xl">
-            {brewedLabel}
+            {cup.brewedLabel}
           </Badge>
           <Badge variant={scoreVariant} className="rounded-xl">
             {cup.scoreLabel}

@@ -22,11 +22,7 @@ export function HeroRich() {
       {/* 1) 背景: うっすらしたグラデーションで温かい雰囲気を出す */}
       <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-background to-muted/40" />
       <div
-        className="pointer-events-none absolute inset-0 opacity-60"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 20% 20%, rgba(0,0,0,0.06), transparent 45%), radial-gradient(circle at 80% 30%, rgba(0,0,0,0.05), transparent 40%), radial-gradient(circle at 40% 90%, rgba(0,0,0,0.05), transparent 45%)",
-        }}
+        className="pointer-events-none absolute inset-0 opacity-60 bg-[radial-gradient(circle_at_20%_20%,rgba(0,0,0,0.06),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(0,0,0,0.05),transparent_40%),radial-gradient(circle_at_40%_90%,rgba(0,0,0,0.05),transparent_45%)]"
         aria-hidden="true"
       />
 

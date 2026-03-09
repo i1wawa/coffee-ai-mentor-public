@@ -153,6 +153,7 @@ Level 2検証
       - `usecase.end`
       - `dependency.call`
       - `auth.audit`
+      - `csp.report`
     3. `logging.googleapis.com/trace`：`string`
     - Cloud Trace連携用の特殊フィールド（`projects/[PROJECT-ID]/traces/[TRACE-ID]`形式）
     4. `message`：`string`
@@ -251,6 +252,26 @@ Level 2検証
       - 成功/失敗フラグ
       3. `user_hash：`string`
       - 匿名ID（sha256等、復元不能な形で保持）
+
+  - `csp.report`：CSP違反レポートを追跡し、設定不備や攻撃兆候の調査起点にする
+    - 出力回数：受信した違反レポート1件につき1本（同一リクエストで複数件なら複数本）
+    - フィールド
+      1. `format`: `enum`
+      - レポート形式
+        - `report-uri`
+        - `report-to`
+      2. `effective_directive`: `string`
+      - 違反検出に使われたCSPディレクティブ
+      3. `document_uri`: `string`
+      - 違反が発生したドキュメントURI（サニタイズ済みの値のみ）
+      4. `blocked_uri`: `string`
+      - 違反対象のリソースURI（サニタイズ済みの値のみ）
+      5. `disposition`: `enum`
+      - ポリシー適用モード
+        - `enforce`
+        - `report`
+      6. `http_status_code`: `number`
+      - 違反発生時のドキュメントHTTPステータス
 
 #### 3.3.3 エラーコード - HTTPステータス対応表
 

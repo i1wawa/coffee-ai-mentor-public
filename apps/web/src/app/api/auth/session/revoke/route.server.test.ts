@@ -1,7 +1,7 @@
 // apps/web/src/app/api/auth/session/revoke/route.server.test.ts
 // ========================================================
 // 概要:
-// - POST /api/auth/session/revoke の Route Handler 単体テスト
+// - POST /api/auth/session/revoke の Route Handler ユニットテスト
 //
 // 責務:
 // - revokeAuthSession が未認証系以外で失敗したときの HTTP 契約を代表1ケースで固定する

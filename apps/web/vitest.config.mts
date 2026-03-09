@@ -66,7 +66,7 @@ export default defineConfig({
     ],
     projects: [
       {
-        // 単体テスト設定
+        // ユニットテスト設定
         test: {
           name: "unit",
           environment: "jsdom",

@@ -8,6 +8,7 @@
 // ========================================================
 
 import { InPageAnchorLink } from "@/frontend/shared/ui/InPageAnchorLink";
+import { ModeToggle } from "@/frontend/widgets/theme-toggle/ui/ModeToggle";
 import { HeaderBrand } from "./HeaderBrand";
 import { HeaderShell } from "./HeaderShell";
 
@@ -40,6 +41,10 @@ export function LegalHeader({ className }: LegalHeaderProps) {
             プライバシーポリシー
           </InPageAnchorLink>
         </nav>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <ModeToggle />
       </div>
     </HeaderShell>
   );
